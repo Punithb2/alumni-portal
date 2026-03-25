@@ -18,6 +18,7 @@ import {
 import ProfileSheet from '../Alumni/ProfileSheet'
 import DirectoryMap from '../../components/DirectoryMap'
 import { STUDENT_FILTER_OPTIONS } from '../../data/directoryFilters'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 export default function StudentDirectory() {
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
@@ -125,10 +126,7 @@ export default function StudentDirectory() {
       onClick={() => setSelectedProfile(profile)}
     >
       <img
-        src={
-          profile.avatar ||
-          `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=f3f4f6&color=2563eb`
-        }
+        src={profile.avatar || getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)}
         alt={profile.first_name}
         className="w-20 h-20 rounded-full object-cover shrink-0 border-2 border-white shadow-md"
       />
@@ -248,10 +246,7 @@ export default function StudentDirectory() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <img
-                              src={
-                                p.avatar ||
-                                `https://ui-avatars.com/api/?name=${p.first_name}+${p.last_name}&background=f3f4f6&color=2563eb`
-                              }
+                              src={p.avatar || getAvatarDataUrl(`${p.first_name} ${p.last_name}`)}
                               alt={p.first_name}
                               className="w-10 h-10 rounded-full object-cover border border-gray-200 group-hover:border-blue-300"
                             />

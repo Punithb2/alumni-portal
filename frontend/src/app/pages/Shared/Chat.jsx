@@ -9,13 +9,14 @@ import {
 import useAuth from '../../hooks/useAuth'
 import ChatProfileSheet from './ChatProfileSheet'
 import { useChat } from '../../hooks/useChat'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 const Chat = () => {
   const { user } = useAuth()
   const currentUser = user || {
     id: 'currentUser',
     name: 'Current User',
-    avatar: 'https://i.pravatar.cc/150?u=current',
+    avatar: getAvatarDataUrl('Current User'),
   }
   const {
     contacts,

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Trash2, Power, Eye, UserCog, UserPlus, CheckCircle } from 'lucide-react'
 import { Table, Modal } from '../../components/GenericComponents'
 import { useUsers } from '../../hooks/useUsers'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 const AdminUsers = () => {
   const navigate = useNavigate()
@@ -135,7 +136,7 @@ const AdminUsers = () => {
             role,
             company: department || 'Imported',
             location: '—',
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=ede9fe&color=4c1d95`,
+            avatar: getAvatarDataUrl(name),
             status: 'Active',
             graduationYear: Number.isNaN(gradYear) ? new Date().getFullYear() : gradYear,
             email,

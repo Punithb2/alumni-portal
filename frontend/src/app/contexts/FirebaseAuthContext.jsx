@@ -99,6 +99,15 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  useEffect(() => {
+    const handleForcedLogout = () => {
+      clearStoredSession()
+      dispatch({ type: 'LOGOUT' })
+    }
+    window.addEventListener('auth:logout', handleForcedLogout)
+    return () => window.removeEventListener('auth:logout', handleForcedLogout)
+  }, [])
+
   const login = async (email, password) => {
     try {
       // 1. Get JWT Tokens

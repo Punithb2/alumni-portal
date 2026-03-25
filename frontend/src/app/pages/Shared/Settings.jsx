@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Eye, EyeOff, Check, Database, AlertTriangle, Paperclip } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 const Toggle = ({ checked, onChange }) => (
@@ -34,7 +35,7 @@ const Field = ({ label, id, type = 'text', value, onChange, placeholder, readOnl
         <input
           id={id}
           type={isPass && !show ? 'password' : 'text'}
-          value={value}
+          value={value ?? ''}
           onChange={onChange}
           placeholder={placeholder}
           readOnly={readOnly}
@@ -66,7 +67,7 @@ const SelectField = ({ label, id, value, onChange, options }) => (
     <div className="mt-2">
       <select
         id={id}
-        value={value}
+        value={value ?? ''}
         onChange={onChange}
         className="block w-full rounded-md border-0 py-2 pl-3 pr-10 text-sm text-gray-900
           shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600
@@ -92,7 +93,7 @@ const TextArea = ({ label, id, value, onChange, rows = 3, placeholder }) => (
       <textarea
         id={id}
         rows={rows}
-        value={value}
+        value={value ?? ''}
         onChange={onChange}
         placeholder={placeholder}
         className="block w-full rounded-md border-0 py-2 px-3 text-sm text-gray-900
@@ -221,7 +222,7 @@ const Settings = () => {
   const role = user?.role || 'Alumni'
   const currentUser = user || {
     name: 'Alumni User',
-    avatar: 'https://i.pravatar.cc/150?u=current',
+    avatar: getAvatarDataUrl('Alumni User'),
     email: 'user@alumni.edu',
   }
 
@@ -231,7 +232,7 @@ const Settings = () => {
   const [savedSection, setSavedSection] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(
-    currentUser.avatar || 'https://i.pravatar.cc/150?u=current'
+    currentUser.avatar || getAvatarDataUrl(currentUser.name || 'Alumni User')
   )
   const fileInputRef = useRef(null)
 
@@ -1077,19 +1078,19 @@ const Settings = () => {
       {
         name: 'Dr. Sarah Chen',
         email: 'sarah.chen@institution.edu',
-        avatar: 'https://i.pravatar.cc/40?img=5',
+        avatar: getAvatarDataUrl('Dr. Sarah Chen'),
         active: true,
       },
       {
         name: 'James Patel',
         email: 'j.patel@institution.edu',
-        avatar: 'https://i.pravatar.cc/40?img=12',
+        avatar: getAvatarDataUrl('James Patel'),
         active: true,
       },
       {
         name: 'Maria Santos',
         email: 'm.santos@institution.edu',
-        avatar: 'https://i.pravatar.cc/40?img=9',
+        avatar: getAvatarDataUrl('Maria Santos'),
         active: false,
       },
     ]

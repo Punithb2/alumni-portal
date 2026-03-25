@@ -1,6 +1,9 @@
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound
 from django.contrib.auth.models import User
 from django.db import transaction
 from . import models
@@ -26,11 +29,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 class EmailOrUsernameTokenObtainPairView(TokenObtainPairView):
     serializer_class = EmailOrUsernameTokenObtainPairSerializer
+    throttle_scope = 'auth'
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (permissions.AllowAny,)
     serializer_class = UserRegistrationSerializer
+    throttle_scope = 'register'
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
@@ -40,7 +45,7 @@ def get_user_profile(request):
         serializer = UserProfileSerializer(profile, context={'request': request})
         return Response(serializer.data)
     except models.UserProfile.DoesNotExist:
-        return Response({"error": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        raise NotFound('Profile not found.')
 
 # ==========================================
 # 2. PROFILES
@@ -49,20 +54,52 @@ def get_user_profile(request):
 class UserProfileViewSet(viewsets.ModelViewSet):
     queryset = models.UserProfile.objects.select_related('user').prefetch_related('work_experiences', 'education').all()
     serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [custom_permissions.IsProfileOwnerOrAdmin]
 
     def get_serializer_context(self):
         return {'request': self.request}
 
 class WorkExperienceViewSet(viewsets.ModelViewSet):
-    queryset = models.WorkExperience.objects.all()
     serializer_class = WorkExperienceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        user = self.request.user
+        role = getattr(getattr(user, 'profile', None), 'role', None)
+        if role == 'admin':
+            return models.WorkExperience.objects.all()
+        return models.WorkExperience.objects.filter(profile__user=user)
+
+    def perform_create(self, serializer):
+        profile = serializer.validated_data.get('profile')
+        role = getattr(getattr(self.request.user, 'profile', None), 'role', None)
+        if not profile:
+            raise ValidationError({'profile': 'Profile is required.'})
+        if role == 'admin' or profile.user_id == self.request.user.id:
+            serializer.save()
+            return
+        raise PermissionDenied('You can only add your own work experience.')
+
 class EducationViewSet(viewsets.ModelViewSet):
-    queryset = models.Education.objects.all()
     serializer_class = EducationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        role = getattr(getattr(user, 'profile', None), 'role', None)
+        if role == 'admin':
+            return models.Education.objects.all()
+        return models.Education.objects.filter(profile__user=user)
+
+    def perform_create(self, serializer):
+        profile = serializer.validated_data.get('profile')
+        role = getattr(getattr(self.request.user, 'profile', None), 'role', None)
+        if not profile:
+            raise ValidationError({'profile': 'Profile is required.'})
+        if role == 'admin' or profile.user_id == self.request.user.id:
+            serializer.save()
+            return
+        raise PermissionDenied('You can only add your own education.')
 
 # ==========================================
 # 3. JOB BOARD
@@ -91,14 +128,17 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Students only see their own applications
         user = self.request.user
-        try:
-            if user.profile.role == 'student':
-                return models.JobApplication.objects.filter(applicant=user)
-        except Exception:
-            pass
-        return models.JobApplication.objects.all()
+        role = getattr(getattr(user, 'profile', None), 'role', None)
+        if role == 'student':
+            return models.JobApplication.objects.filter(applicant=user)
+        if role in ['alumni', 'admin']:
+            return models.JobApplication.objects.all()
+        return models.JobApplication.objects.none()
 
     def perform_create(self, serializer):
+        job = serializer.validated_data.get('job')
+        if models.JobApplication.objects.filter(job=job, applicant=self.request.user).exists():
+            raise ValidationError({'non_field_errors': ['You have already applied for this job.']})
         serializer.save(applicant=self.request.user)
 
 class HiringDriveViewSet(viewsets.ModelViewSet):
@@ -303,10 +343,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
         conversation = self.get_object()
+        content = (request.data.get('content') or '').strip()
+        if not content:
+            raise ValidationError({'content': ['Message content is required.']})
         msg = models.Message.objects.create(
             conversation=conversation,
             sender=request.user,
-            content=request.data.get('content', '')
+            content=content
         )
         serializer = MessageSerializer(msg, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -348,13 +391,15 @@ class CampaignViewSet(viewsets.ModelViewSet):
         recurring = request.data.get('recurring', False)
         frequency = request.data.get('frequency', None)
 
-        if not amount:
-            return Response({'error': 'Amount is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if amount is None:
+            raise ValidationError({'amount': ['Amount is required.']})
 
         try:
             amount = float(amount)
         except (TypeError, ValueError):
-            return Response({'error': 'Invalid amount.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({'amount': ['Invalid amount.']})
+        if amount <= 0:
+            raise ValidationError({'amount': ['Amount must be greater than zero.']})
 
         with transaction.atomic():
             donation = models.Donation.objects.create(
@@ -377,6 +422,16 @@ class CampaignViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def participate(self, request, pk=None):
         campaign = self.get_object()
+        if campaign.campaign_type != 'participation':
+            raise ValidationError({'campaign': ['Participation is only allowed for participation campaigns.']})
+        already_participated = models.Donation.objects.filter(
+            campaign=campaign,
+            donor=request.user,
+            status='completed',
+            campaign_type='participation',
+        ).exists()
+        if already_participated:
+            raise ValidationError({'campaign': ['You have already joined this campaign.']})
         with transaction.atomic():
             donation = models.Donation.objects.create(
                 campaign=campaign,
@@ -425,12 +480,21 @@ class ClubViewSet(viewsets.ModelViewSet):
             club.members_count = 1
             club.save()
 
+    def _is_platform_admin(self, user):
+        return getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+
+    def _is_club_manager(self, club, user):
+        if self._is_platform_admin(user):
+            return True
+        membership = club.memberships.filter(user=user).first()
+        return bool(membership and membership.role in ['owner', 'admin', 'moderator'])
+
     @action(detail=True, methods=['post'])
     def join(self, request, pk=None):
         club = self.get_object()
         # Already a member?
         if club.memberships.filter(user=request.user).exists():
-            return Response({'error': 'Already a member.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({'club': ['Already a member.']})
 
         if club.is_private:
             # Send join request
@@ -454,9 +518,9 @@ class ClubViewSet(viewsets.ModelViewSet):
         club = self.get_object()
         membership = club.memberships.filter(user=request.user).first()
         if not membership:
-            return Response({'error': 'Not a member.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({'club': ['Not a member.']})
         if membership.role == 'owner':
-            return Response({'error': 'Owner cannot leave. Transfer ownership first.'}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({'club': ['Owner cannot leave. Transfer ownership first.']})
         membership.delete()
         club.members_count = max(0, club.members_count - 1)
         club.save()
@@ -477,16 +541,20 @@ class ClubViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def join_requests(self, request, pk=None):
         club = self.get_object()
+        if not self._is_club_manager(club, request.user):
+            raise PermissionDenied('You are not allowed to view join requests.')
         serializer = ClubJoinRequestSerializer(club.join_requests.filter(status='pending'), many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
     def approve_request(self, request, pk=None):
         club = self.get_object()
+        if not self._is_club_manager(club, request.user):
+            raise PermissionDenied('You are not allowed to approve requests.')
         req_id = request.data.get('request_id')
         req = club.join_requests.filter(id=req_id, status='pending').first()
         if not req:
-            return Response({'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound('Request not found.')
         with transaction.atomic():
             req.status = 'approved'
             req.save()
@@ -498,10 +566,12 @@ class ClubViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reject_request(self, request, pk=None):
         club = self.get_object()
+        if not self._is_club_manager(club, request.user):
+            raise PermissionDenied('You are not allowed to reject requests.')
         req_id = request.data.get('request_id')
         req = club.join_requests.filter(id=req_id, status='pending').first()
         if not req:
-            return Response({'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound('Request not found.')
         req.status = 'rejected'
         req.save()
         return Response({'status': 'rejected'})
@@ -509,6 +579,8 @@ class ClubViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         """Admin approves a pending club"""
+        if not self._is_platform_admin(request.user):
+            raise PermissionDenied('Only admins can approve clubs.')
         club = self.get_object()
         club.status = 'active'
         club.save()
@@ -516,6 +588,8 @@ class ClubViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def suspend(self, request, pk=None):
+        if not self._is_platform_admin(request.user):
+            raise PermissionDenied('Only admins can suspend clubs.')
         club = self.get_object()
         club.status = 'suspended'
         club.save()
@@ -534,6 +608,8 @@ class ClubViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def create_post(self, request, pk=None):
         club = self.get_object()
+        if club.is_private and not club.memberships.filter(user=request.user).exists() and not self._is_platform_admin(request.user):
+            raise PermissionDenied('You must be a club member to post.')
         serializer = ClubPostSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             serializer.save(author=request.user, club=club)
@@ -550,10 +626,15 @@ class ClubViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
         club = self.get_object()
+        if club.is_private and not club.memberships.filter(user=request.user).exists() and not self._is_platform_admin(request.user):
+            raise PermissionDenied('You must be a club member to chat.')
+        text = (request.data.get('text') or '').strip()
+        if not text:
+            raise ValidationError({'text': ['Message text is required.']})
         msg = models.ClubMessage.objects.create(
             club=club,
             sender=request.user,
-            text=request.data.get('text', '')
+            text=text
         )
         serializer = ClubMessageSerializer(msg, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -586,6 +667,11 @@ class ClubPostViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def pin(self, request, pk=None):
         post = self.get_object()
+        role = getattr(getattr(request.user, 'profile', None), 'role', None)
+        if role != 'admin':
+            membership = post.club.memberships.filter(user=request.user).first()
+            if not membership or membership.role not in ['owner', 'admin', 'moderator']:
+                raise PermissionDenied('You are not allowed to pin posts.')
         post.is_pinned = not post.is_pinned
         post.save()
         return Response({'is_pinned': post.is_pinned})

@@ -1,25 +1,29 @@
 from rest_framework import permissions
 
+def _get_user_role(user):
+    profile = getattr(user, 'profile', None)
+    return getattr(profile, 'role', None)
+
 class IsAlumni(permissions.BasePermission):
     """
     Allows access only to alumni users.
     """
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.profile.role == 'alumni')
+        return bool(request.user and request.user.is_authenticated and _get_user_role(request.user) == 'alumni')
 
 class IsStudent(permissions.BasePermission):
     """
     Allows access only to student users.
     """
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.profile.role == 'student')
+        return bool(request.user and request.user.is_authenticated and _get_user_role(request.user) == 'student')
 
 class IsAdminUser(permissions.BasePermission):
     """
     Allows access only to admin users.
     """
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.profile.role == 'admin')
+        return bool(request.user and request.user.is_authenticated and _get_user_role(request.user) == 'admin')
 
 class IsAlumniOrAdmin(permissions.BasePermission):
     """
@@ -28,7 +32,20 @@ class IsAlumniOrAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated):
             return False
-        return request.user.profile.role in ['alumni', 'admin']
+        return _get_user_role(request.user) in ['alumni', 'admin']
+
+class IsProfileOwnerOrAdmin(permissions.BasePermission):
+    """
+    Allows profile owners to edit themselves; admins can edit any profile.
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated)
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        role = _get_user_role(request.user)
+        return role == 'admin' or obj.user_id == request.user.id
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """

@@ -39,6 +39,7 @@ export const Tag = ({ children, className = '' }) => (
 )
 
 export const AvatarWithStatus = ({ src, alt, status, size = 'md', className = '' }) => {
+  const [imageFailed, setImageFailed] = React.useState(false)
   const sizes = {
     sm: 'w-8 h-8',
     md: 'w-10 h-10',
@@ -55,11 +56,22 @@ export const AvatarWithStatus = ({ src, alt, status, size = 'md', className = ''
 
   return (
     <div className={`relative inline-block ${className}`}>
-      <img
-        src={src || 'https://via.placeholder.com/150'}
-        alt={alt || 'Avatar'}
-        className={`${sizes[size]} rounded-full object-cover border-2 border-white shadow-sm`}
-      />
+      {src && !imageFailed ? (
+        <img
+          src={src}
+          alt={alt || 'Avatar'}
+          onError={() => setImageFailed(true)}
+          className={`${sizes[size]} rounded-full object-cover border-2 border-white shadow-sm`}
+        />
+      ) : (
+        <div
+          className={`${sizes[size]} rounded-full border-2 border-white shadow-sm bg-slate-100 text-slate-500 flex items-center justify-center`}
+          aria-label={alt || 'Avatar fallback'}
+          title={alt || 'Avatar'}
+        >
+          <User size={size === 'xl' ? 36 : size === 'lg' ? 24 : 16} />
+        </div>
+      )}
       {status && (
         <span
           className={`absolute bottom-0 right-0 block rounded-full ring-2 ring-white

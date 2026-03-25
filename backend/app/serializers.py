@@ -1,6 +1,9 @@
 # backend/app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth.password_validation import validate_password
+from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
@@ -11,6 +14,18 @@ from .models import (
     ForumReply, Conversation, Message, Event, NewsArticle, Notification,
     Campaign, Donation, Club, ClubMembership, ClubJoinRequest, ClubPost, ClubMessage
 )
+
+
+def get_user_avatar(user):
+    profile = getattr(user, 'profile', None)
+    avatar = getattr(profile, 'avatar', '')
+    return avatar or ''
+
+def validate_text_length(value, field_name, max_length):
+    text = (value or '').strip()
+    if text and len(text) > max_length:
+        raise serializers.ValidationError(f'{field_name} cannot exceed {max_length} characters.')
+    return value
 
 # ==========================================
 # 1. CORE DIRECTORY & PROFILES
@@ -50,6 +65,12 @@ class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
         return super().validate({self.username_field: username_value, 'password': password})
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(
+        validators=[UniqueValidator(queryset=User.objects.all(), message='This username is already taken.')]
+    )
+    email = serializers.EmailField(
+        validators=[UniqueValidator(queryset=User.objects.all(), message='This email is already registered.')]
+    )
     password = serializers.CharField(write_only=True)
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
@@ -62,7 +83,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     graduation_year = serializers.IntegerField(required=False, allow_null=True, write_only=True)
     current_company = serializers.CharField(required=False, allow_blank=True, write_only=True)
     current_position = serializers.CharField(required=False, allow_blank=True, write_only=True)
-    linkedin_url = serializers.URLField(required=False, allow_null=True, write_only=True)
+    linkedin_url = serializers.URLField(required=False, allow_null=True, allow_blank=True, write_only=True)
     student_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
     gender = serializers.CharField(required=False, allow_blank=True, write_only=True)
     college = serializers.CharField(required=False, allow_blank=True, write_only=True)
@@ -75,7 +96,21 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'current_position', 'linkedin_url', 'student_id', 'gender', 'college'
         ]
 
+    def validate_username(self, value):
+        return value.strip()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
     def create(self, validated_data):
+        linkedin = validated_data.pop('linkedin_url', None)
+        if not linkedin:
+            linkedin = None
+
         profile_data = {
             'role': validated_data.pop('role'),
             'phone': validated_data.pop('phone', ''),
@@ -84,7 +119,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'graduation_year': validated_data.pop('graduation_year', None),
             'current_company': validated_data.pop('current_company', ''),
             'current_position': validated_data.pop('current_position', ''),
-            'linkedin_url': validated_data.pop('linkedin_url', None),
+            'linkedin_url': linkedin,
             'student_id': validated_data.pop('student_id', ''),
             'gender': validated_data.pop('gender', ''),
             'college': validated_data.pop('college', ''),
@@ -141,6 +176,12 @@ class JobSerializer(serializers.ModelSerializer):
             return obj.posted_by.get_full_name()
         return "Admin"
 
+    def validate_description(self, value):
+        return validate_text_length(value, 'Description', 5000)
+
+    def validate_requirements(self, value):
+        return validate_text_length(value, 'Requirements', 5000)
+
 class JobApplicationSerializer(serializers.ModelSerializer):
     job_title = serializers.CharField(source='job.title', read_only=True)
     job_company = serializers.CharField(source='job.company', read_only=True)
@@ -148,6 +189,9 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobApplication
         fields = '__all__'
+
+    def validate_cover_letter(self, value):
+        return validate_text_length(value, 'Cover letter', 3000)
 
 class HiringDriveSerializer(serializers.ModelSerializer):
     registered = serializers.SerializerMethodField()
@@ -189,6 +233,9 @@ class MentoringRequestSerializer(serializers.ModelSerializer):
         model = MentoringRequest
         fields = '__all__'
 
+    def validate_message(self, value):
+        return validate_text_length(value, 'Message', 2000)
+
 # ==========================================
 # 4. SOCIAL FEED & COMMUNITY
 # ==========================================
@@ -202,10 +249,10 @@ class CommentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_author_avatar(self, obj):
-        try:
-            return obj.author.profile.avatar
-        except Exception:
-            return ''
+        return get_user_avatar(obj.author)
+
+    def validate_content(self, value):
+        return validate_text_length(value, 'Comment', 2000)
 
 class PostSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
@@ -221,10 +268,10 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.comments.count()
 
     def get_author_avatar(self, obj):
-        try:
-            return obj.author.profile.avatar
-        except Exception:
-            return ''
+        return get_user_avatar(obj.author)
+
+    def validate_content(self, value):
+        return validate_text_length(value, 'Post content', 5000)
 
 # ==========================================
 # 5. FORUMS, EVENTS, & NOTIFICATIONS
@@ -244,10 +291,10 @@ class ForumReplySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_author_avatar(self, obj):
-        try:
-            return obj.author.profile.avatar
-        except Exception:
-            return ''
+        return get_user_avatar(obj.author)
+
+    def validate_content(self, value):
+        return validate_text_length(value, 'Reply', 3000)
 
 class ForumTopicSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
@@ -261,6 +308,9 @@ class ForumTopicSerializer(serializers.ModelSerializer):
 
     def get_reply_count(self, obj):
         return obj.replies.count()
+
+    def validate_content(self, value):
+        return validate_text_length(value, 'Topic content', 6000)
 
 class EventSerializer(serializers.ModelSerializer):
     attendees_count = serializers.SerializerMethodField()
@@ -302,10 +352,10 @@ class MessageSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_sender_avatar(self, obj):
-        try:
-            return obj.sender.profile.avatar
-        except Exception:
-            return ''
+        return get_user_avatar(obj.sender)
+
+    def validate_content(self, value):
+        return validate_text_length(value, 'Message', 3000)
 
 class ConversationSerializer(serializers.ModelSerializer):
     participants = UserBasicSerializer(many=True, read_only=True)
@@ -348,6 +398,11 @@ class DonationSerializer(serializers.ModelSerializer):
             return obj.donor.get_full_name()
         return 'Anonymous'
 
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Amount must be greater than zero.')
+        return value
+
 class CampaignSerializer(serializers.ModelSerializer):
     recent_donors = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
@@ -374,6 +429,12 @@ class CampaignSerializer(serializers.ModelSerializer):
             return obj.created_by.get_full_name()
         return 'Admin'
 
+    def validate_story(self, value):
+        return validate_text_length(value, 'Story', 5000)
+
+    def validate_long_story(self, value):
+        return validate_text_length(value, 'Long story', 20000)
+
 # ==========================================
 # 8. CLUBS
 # ==========================================
@@ -387,10 +448,7 @@ class ClubMembershipSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_avatar(self, obj):
-        try:
-            return obj.user.profile.avatar
-        except Exception:
-            return ''
+        return get_user_avatar(obj.user)
 
 class ClubJoinRequestSerializer(serializers.ModelSerializer):
     user = UserBasicSerializer(read_only=True)
@@ -416,10 +474,10 @@ class ClubPostSerializer(serializers.ModelSerializer):
         read_only_fields = ['author', 'likes']
 
     def get_author_avatar(self, obj):
-        try:
-            return obj.author.profile.avatar
-        except Exception:
-            return ''
+        return get_user_avatar(obj.author)
+
+    def validate_content(self, value):
+        return validate_text_length(value, 'Post content', 5000)
 
 class ClubMessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source='sender.get_full_name', read_only=True)
@@ -431,10 +489,10 @@ class ClubMessageSerializer(serializers.ModelSerializer):
         read_only_fields = ['sender']
 
     def get_sender_avatar(self, obj):
-        try:
-            return obj.sender.profile.avatar
-        except Exception:
-            return ''
+        return get_user_avatar(obj.sender)
+
+    def validate_text(self, value):
+        return validate_text_length(value, 'Message', 3000)
 
 class ClubSerializer(serializers.ModelSerializer):
     is_member = serializers.SerializerMethodField()
@@ -471,8 +529,8 @@ class ClubSerializer(serializers.ModelSerializer):
         avatars = []
         for m in obj.memberships.all()[:5]:
             try:
-                avatars.append(m.user.profile.avatar or '')
-            except Exception:
+                avatars.append(get_user_avatar(m.user))
+            except (AttributeError, ObjectDoesNotExist):
                 avatars.append('')
         return avatars
 

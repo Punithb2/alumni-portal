@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import api from 'app/utils/api'
+import { getAvatarDataUrl } from 'app/utils/avatar'
 
 const titleCaseRole = (role) => {
   const normalized = String(role || '').toLowerCase()
@@ -28,7 +29,7 @@ const mapProfileToUser = (profile) => {
     location: profile.city || '—',
     avatar:
       profile.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=e0e7ff&color=4f46e5`,
+      getAvatarDataUrl(fullName),
     status: 'Active',
     graduationYear: profile.graduation_year || '',
     email: profile.user?.email || '',

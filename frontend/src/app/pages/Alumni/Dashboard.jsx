@@ -6,28 +6,29 @@ import { useGamification } from '../../hooks/useGamification'
 import { BADGES } from '../../data/gamification'
 import { OnlineHighlightRow, PostComposer, FeedPost } from '../../components/DashboardComponents'
 import { useFeed } from '../../hooks/useFeed'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 const ALUMNI_USERS = [
   {
     title: 'Taylor',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg',
+    src: getAvatarDataUrl('Taylor'),
   },
-  { title: 'Alex', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/male/21.jpg' },
+  { title: 'Alex', online: true, src: getAvatarDataUrl('Alex') },
   {
     title: 'Jamie',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/female/22.jpg',
+    src: getAvatarDataUrl('Jamie'),
   },
   {
     title: 'Morgan',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/male/23.jpg',
+    src: getAvatarDataUrl('Morgan'),
   },
   {
     title: 'Riley',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/female/24.jpg',
+    src: getAvatarDataUrl('Riley'),
   },
 ]
 

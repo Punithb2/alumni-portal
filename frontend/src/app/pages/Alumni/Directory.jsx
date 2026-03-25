@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import DirectoryMap from '../../components/DirectoryMap'
 import ProfileSheet from './ProfileSheet'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 export default function AlumniDirectory() {
   const [viewMode, setViewMode] = useState('grid') // 'grid', 'list', 'map'
@@ -211,7 +212,7 @@ export default function AlumniDirectory() {
                           <img
                             src={
                               profile.avatar ||
-                              `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=ffffff&color=2563eb`
+                              getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)
                             }
                             alt={profile.first_name}
                             className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm bg-white"
@@ -337,7 +338,7 @@ export default function AlumniDirectory() {
                             <img
                               src={
                                 profile.avatar ||
-                                `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=f3f4f6&color=2563eb`
+                                getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)
                               }
                               alt={profile.first_name}
                               className="w-10 h-10 rounded-full object-cover border border-gray-200 group-hover:border-blue-300"

@@ -4,6 +4,7 @@ import MarkerClusterGroup from 'react-leaflet-cluster'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { MapPin, Briefcase } from 'lucide-react'
+import { getAvatarDataUrl } from '../utils/avatar'
 
 // Fix Leaflet's default icon path issues in React
 delete L.Icon.Default.prototype._getIconUrl
@@ -63,10 +64,7 @@ export default function DirectoryMap({ profiles, onProfileClick }) {
                 <div className="w-48 cursor-pointer" onClick={() => onProfileClick(profile)}>
                   <div className="flex items-center gap-3 mb-2">
                     <img
-                      src={
-                        profile.avatar ||
-                        `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=f3f4f6&color=2563eb`
-                      }
+                      src={profile.avatar || getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)}
                       alt={profile.first_name}
                       className="w-10 h-10 rounded-full border border-gray-200"
                     />

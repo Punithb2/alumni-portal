@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import api from 'app/utils/api'
+import { getAvatarDataUrl } from 'app/utils/avatar'
 
 const fullName = (user) => `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
 
@@ -11,7 +12,7 @@ const toContact = (conversation, currentUserId) => {
     conversationId: conversation.id,
     name,
     role: 'Community Member',
-    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=f1f5f9&color=334155`,
+    avatar: getAvatarDataUrl(name),
     status: 'offline',
     email: other?.email || '',
   }

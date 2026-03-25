@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import useAuth from 'app/hooks/useAuth'
+import { getAvatarDataUrl } from 'app/utils/avatar'
 import {
   Eye,
   EyeOff,
@@ -85,8 +86,8 @@ const RoleSelector = ({ value, onChange }) => {
 export const Login = () => {
   const navigate = useNavigate()
   const [role, setRole] = useState('Alumni')
-  const [email, setEmail] = useState('alex@alumni.com')
-  const [password, setPassword] = useState('password123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
 
   const { login } = useAuth()
@@ -94,16 +95,6 @@ export const Login = () => {
   const handleRoleChange = (newRole) => {
     setRole(newRole)
     setLoginError('')
-    if (newRole === 'Alumni') {
-      setEmail('alex@alumni.com')
-      setPassword('password123')
-    } else if (newRole === 'Student') {
-      setEmail('student1@uni.com')
-      setPassword('password123')
-    } else if (newRole === 'University') {
-      setEmail('admin@alumni.com')
-      setPassword('admin123')
-    }
   }
 
   const handleSubmit = async (e) => {
@@ -154,7 +145,7 @@ export const Login = () => {
               <img
                 key={i}
                 className="w-12 h-12 rounded-full border-2 border-slate-900 relative z-10 hover:z-20 transform hover:scale-110 transition-all duration-300 shadow-sm"
-                src={`https://i.pravatar.cc/150?u=${i}`}
+                src={getAvatarDataUrl(`Alumni ${i}`)}
                 alt="Alumni"
               />
             ))}
@@ -297,6 +288,23 @@ const FormSection = ({ title, icon: Icon, children }) => (
   </div>
 )
 
+const extractApiErrorMessage = (apiErrors) => {
+  if (!apiErrors) return null
+  if (typeof apiErrors === 'string') return apiErrors
+  if (Array.isArray(apiErrors) && apiErrors.length) return String(apiErrors[0])
+  if (typeof apiErrors !== 'object') return null
+
+  for (const value of Object.values(apiErrors)) {
+    if (Array.isArray(value) && value.length) return String(value[0])
+    if (typeof value === 'string' && value.trim()) return value
+    if (value && typeof value === 'object') {
+      const nested = extractApiErrorMessage(value)
+      if (nested) return nested
+    }
+  }
+  return null
+}
+
 export const Register = () => {
   const navigate = useNavigate()
   const [role, setRole] = useState('Alumni')
@@ -319,6 +327,7 @@ export const Register = () => {
   })
 
   const { register } = useAuth()
+  const [registerError, setRegisterError] = useState('')
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -327,8 +336,9 @@ export const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setRegisterError('')
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!')
+      setRegisterError('Passwords do not match.')
       return
     }
 
@@ -355,6 +365,9 @@ export const Register = () => {
       gender: formData.gender,
       college: formData.college,
     }
+    if (!payload.linkedin_url || !String(payload.linkedin_url).trim()) {
+      delete payload.linkedin_url
+    }
 
     try {
       await register(payload)
@@ -362,7 +375,12 @@ export const Register = () => {
       navigate('/login')
     } catch (error) {
       console.error(error)
-      alert('Registration failed. Please try again.')
+      const message = extractApiErrorMessage(error?.response?.data)
+      if (message) {
+        setRegisterError(message)
+        return
+      }
+      setRegisterError('Registration failed. Please check your details and try again.')
     }
   }
 
@@ -411,6 +429,11 @@ export const Register = () => {
 
         <div className="bg-white shadow-xl shadow-slate-200/50 rounded-2xl border border-slate-100 p-8 sm:p-10">
           <form onSubmit={handleSubmit} className="space-y-8">
+            {registerError && (
+              <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {registerError}
+              </div>
+            )}
             {/* Section 1: Personal Info */}
             <FormSection title="Personal Information" icon={User}>
               <AuthInput

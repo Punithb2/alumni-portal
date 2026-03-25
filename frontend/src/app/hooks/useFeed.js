@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from 'app/utils/api'
+import { getAvatarDataUrl } from 'app/utils/avatar'
 
 const normalizePostType = (value) => {
   const mapped = String(value || 'UPDATE').toUpperCase()
@@ -30,7 +31,7 @@ const toUiPost = (post) => {
     role: roleLabel,
     avatar:
       post.author_avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=f3f4f6&color=4f46e5`,
+      getAvatarDataUrl(authorName),
     verified: false,
     verifiedType: null,
     time: formatTimeAgo(post.created_at),
@@ -45,7 +46,7 @@ const toUiPost = (post) => {
       author: c.author_name || 'Unknown',
       avatar:
         c.author_avatar ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(c.author_name || 'User')}&background=f1f5f9&color=334155`,
+        getAvatarDataUrl(c.author_name || 'User'),
       text: c.content || '',
       time: formatTimeAgo(c.created_at),
       likes: 0,

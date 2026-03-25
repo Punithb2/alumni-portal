@@ -48,6 +48,13 @@ class UserProfile(models.Model):
     willing_to_hire = models.BooleanField(default=False)
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public')
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['role']),
+            models.Index(fields=['department']),
+            models.Index(fields=['graduation_year']),
+        ]
+
     def __str__(self):
         return self.user.get_full_name()
 
@@ -89,12 +96,28 @@ class Job(models.Model):
     posted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='posted_jobs')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['company']),
+        ]
+
 class JobApplication(models.Model):
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='applications')
     applicant = models.ForeignKey(User, on_delete=models.CASCADE, related_name='job_applications')
     status = models.CharField(max_length=50, default='pending') # pending, accepted, rejected
     cover_letter = models.TextField(blank=True)
     applied_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['job', 'applicant'], name='uniq_job_application_per_user'),
+        ]
+        indexes = [
+            models.Index(fields=['applicant', 'status']),
+            models.Index(fields=['job', 'status']),
+        ]
 
 class HiringDrive(models.Model):
     title = models.CharField(max_length=200)
@@ -166,6 +189,11 @@ class Post(models.Model):
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     reaction_counts = models.JSONField(default=dict) # E.g., {"like": 24, "love": 8}
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['created_at']),
+        ]
     
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments')
@@ -296,6 +324,16 @@ class Campaign(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='campaigns')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=models.Q(raised__gte=0), name='campaign_raised_non_negative'),
+            models.CheckConstraint(check=models.Q(donor_count__gte=0), name='campaign_donor_count_non_negative'),
+        ]
+        indexes = [
+            models.Index(fields=['status', 'campaign_type']),
+            models.Index(fields=['created_at']),
+        ]
+
     def __str__(self):
         return self.title
 
@@ -322,6 +360,15 @@ class Donation(models.Model):
     frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, blank=True, null=True)
     campaign_type = models.CharField(max_length=20, default='donation')  # donation | participation
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=models.Q(amount__gt=0), name='donation_amount_gt_zero'),
+        ]
+        indexes = [
+            models.Index(fields=['campaign', 'status']),
+            models.Index(fields=['donor', 'created_at']),
+        ]
 
     def __str__(self):
         return f"{self.donor} → {self.campaign.title} ({self.amount})"

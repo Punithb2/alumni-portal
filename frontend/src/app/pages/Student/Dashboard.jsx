@@ -6,28 +6,29 @@ import { useGamification } from '../../hooks/useGamification'
 import { BADGES } from '../../data/gamification'
 import { OnlineHighlightRow, PostComposer, FeedPost } from '../../components/DashboardComponents'
 import { useFeed } from '../../hooks/useFeed'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 const MENTOR_USERS = [
   {
     title: 'Taylor',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg',
+    src: getAvatarDataUrl('Taylor'),
   },
-  { title: 'Alex', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/male/21.jpg' },
+  { title: 'Alex', online: true, src: getAvatarDataUrl('Alex') },
   {
     title: 'Jamie',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/female/22.jpg',
+    src: getAvatarDataUrl('Jamie'),
   },
   {
     title: 'Morgan',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/male/23.jpg',
+    src: getAvatarDataUrl('Morgan'),
   },
   {
     title: 'Riley',
     online: true,
-    src: 'https://xsgames.co/randomusers/assets/avatars/female/24.jpg',
+    src: getAvatarDataUrl('Riley'),
   },
 ]
 
@@ -92,7 +93,7 @@ const StudentDashboard = () => {
             <div className="relative px-4 pb-4 -mt-10">
               <div className="w-20 h-20 rounded-full bg-white mx-auto border-4 border-white shadow-sm overflow-hidden mb-3">
                 <img
-                  src={user?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg'}
+                  src={user?.avatar || getAvatarDataUrl(user?.displayName || user?.name || 'Student')}
                   className="w-full h-full object-cover"
                   alt="Profile"
                 />

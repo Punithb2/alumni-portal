@@ -15,6 +15,7 @@ import {
   Share2,
   Bookmark,
 } from 'lucide-react'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 const ChatProfileSheet = ({ profile, isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('Posts')
@@ -86,7 +87,7 @@ const ChatProfileSheet = ({ profile, isOpen, onClose }) => {
               <div className="relative -mt-12 sm:-mt-16 mb-4 flex justify-between items-end">
                 <div className="p-1 bg-white rounded-full inline-block shadow-md relative z-10">
                   <img
-                    src={profile.avatar || `https://ui-avatars.com/api/?name=${profile.name}`}
+                    src={profile.avatar || getAvatarDataUrl(profile.name)}
                     alt={profile.name}
                     className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-white"
                   />
@@ -185,7 +186,7 @@ const ChatProfileSheet = ({ profile, isOpen, onClose }) => {
                       <div className="flex items-center justify-between mb-4 text-left">
                         <div className="flex items-center gap-3">
                           <img
-                            src={profile.avatar}
+                            src={profile.avatar || getAvatarDataUrl(profile.name)}
                             alt=""
                             className="w-10 h-10 rounded-full border border-slate-100"
                           />
@@ -239,7 +240,7 @@ const ChatProfileSheet = ({ profile, isOpen, onClose }) => {
                       <div className="flex items-center justify-between mb-4 text-left">
                         <div className="flex items-center gap-3">
                           <img
-                            src={profile.avatar}
+                            src={profile.avatar || getAvatarDataUrl(profile.name)}
                             alt=""
                             className="w-10 h-10 rounded-full border border-slate-100"
                           />

@@ -19,6 +19,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { POST_TYPES, REACTIONS } from '../constants/feed'
+import { getAvatarDataUrl } from '../utils/avatar'
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 const totalReactions = (r = {}) => Object.values(r).reduce((a, b) => a + b, 0)
@@ -208,7 +209,8 @@ const CommentItem = ({ c, currentUser, depth = 0 }) => {
       {
         id: Date.now(),
         author: (currentUser?.displayName || currentUser?.name || 'You').split(' ')[0],
-        avatar: currentUser?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg',
+        avatar:
+          currentUser?.avatar || getAvatarDataUrl(currentUser?.displayName || currentUser?.name || 'You'),
         text: replyText.trim(),
         time: 'Just now',
         likes: 0,
@@ -279,11 +281,12 @@ const CommentItem = ({ c, currentUser, depth = 0 }) => {
           {/* Reply input */}
           {replyOpen && (
             <div className="flex gap-2 items-center mt-2">
-              <img
-                src={
-                  currentUser?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg'
-                }
-                alt="You"
+                <img
+                  src={
+                    currentUser?.avatar ||
+                    getAvatarDataUrl(currentUser?.displayName || currentUser?.name || 'You')
+                  }
+                  alt="You"
                 className="w-6 h-6 rounded-full object-cover flex-shrink-0 border border-slate-200"
               />
               <div className="flex-1 relative">
@@ -379,7 +382,8 @@ export const FeedPost = ({ post, currentUser }) => {
     const newComment = {
       id: Date.now(),
       author: (currentUser?.displayName || currentUser?.name || 'You').split(' ')[0],
-      avatar: currentUser?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg',
+      avatar:
+        currentUser?.avatar || getAvatarDataUrl(currentUser?.displayName || currentUser?.name || 'You'),
       text: commentText.trim(),
       time: 'Just now',
       likes: 0,
@@ -576,7 +580,8 @@ export const FeedPost = ({ post, currentUser }) => {
           <div className="flex gap-2.5 items-center mt-3 mb-4">
             <img
               src={
-                currentUser?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg'
+                currentUser?.avatar ||
+                getAvatarDataUrl(currentUser?.displayName || currentUser?.name || 'You')
               }
               alt="You"
               className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-slate-200"
@@ -745,7 +750,7 @@ const PostComposerModal = ({ currentUser, onClose, onPost }) => {
         {/* Author row */}
         <div className="flex items-center gap-3 px-5 py-3">
           <img
-            src={currentUser?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg'}
+            src={currentUser?.avatar || getAvatarDataUrl(currentUser?.displayName || currentUser?.name || 'You')}
             alt="You"
             className="w-10 h-10 rounded-full object-cover border border-slate-200"
           />
@@ -895,7 +900,7 @@ export const PostComposer = ({ currentUser, placeholder = "What's on your mind..
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-4">
         <div className="flex gap-3 items-center">
           <img
-            src={currentUser?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg'}
+            src={currentUser?.avatar || getAvatarDataUrl(currentUser?.displayName || currentUser?.name || 'You')}
             alt="You"
             className="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0"
           />

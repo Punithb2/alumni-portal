@@ -28,6 +28,7 @@ import {
   Bookmark,
 } from 'lucide-react'
 import clsx from 'clsx'
+import { getAvatarDataUrl } from '../../utils/avatar'
 
 export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'Alumni' }) {
   const [activeTab, setActiveTab] = useState('Posts')
@@ -104,10 +105,7 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
             <div className="relative -mt-12 sm:-mt-16 mb-4 flex justify-between items-end">
               <div className="p-1 bg-white rounded-full inline-block shadow-md relative z-10">
                 <img
-                  src={
-                    profile.avatar ||
-                    `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=f3f4f6&color=374151`
-                  }
+                  src={profile.avatar || getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)}
                   alt={fullName}
                   className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-white"
                 />
@@ -224,14 +222,14 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
                   <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-4 text-left">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={
-                            profile.avatar ||
-                            `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}`
-                          }
-                          alt=""
-                          className="w-10 h-10 rounded-full border border-slate-100"
-                        />
+                          <img
+                            src={
+                              profile.avatar ||
+                              getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)
+                            }
+                            alt=""
+                            className="w-10 h-10 rounded-full border border-slate-100"
+                          />
                         <div>
                           <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-none">
                             {fullName}
@@ -281,14 +279,14 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
                   <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-4 text-left">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={
-                            profile.avatar ||
-                            `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}`
-                          }
-                          alt=""
-                          className="w-10 h-10 rounded-full border border-slate-100"
-                        />
+                          <img
+                            src={
+                              profile.avatar ||
+                              getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)
+                            }
+                            alt=""
+                            className="w-10 h-10 rounded-full border border-slate-100"
+                          />
                         <div>
                           <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-none">
                             {fullName}
