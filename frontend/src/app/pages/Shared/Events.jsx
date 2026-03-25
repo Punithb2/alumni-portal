@@ -1,61 +1,65 @@
-import React, { useState } from 'react';
-import { Plus, Calendar, MapPin, Users, Ticket, CheckCircle2 } from 'lucide-react';
-import useAuth from '../../hooks/useAuth';
-import { useEvents } from '../../hooks/useEvents';
+import React, { useState } from 'react'
+import { Plus, Calendar, MapPin, Users, Ticket, CheckCircle2 } from 'lucide-react'
+import useAuth from '../../hooks/useAuth'
+import { useEvents } from '../../hooks/useEvents'
 
-import EventsSidebar from '../../components/Events/EventsSidebar';
-import EventCard from '../../components/Events/EventCard';
-import EventsRightSidebar from '../../components/Events/EventsRightSidebar';
-import EventSheet from '../../components/Events/EventSheet';
+import EventsSidebar from '../../components/Events/EventsSidebar'
+import EventCard from '../../components/Events/EventCard'
+import EventsRightSidebar from '../../components/Events/EventsRightSidebar'
+import EventSheet from '../../components/Events/EventSheet'
 
 const Events = () => {
-  const { user } = useAuth();
-  const currentUser = user || { role: 'Alumni' };
-  const isAdmin = currentUser?.role === 'University' || currentUser?.role === 'SA';
+  const { user } = useAuth()
+  const currentUser = user || { role: 'Alumni' }
+  // const isAdmin = currentUser?.role === 'University' || currentUser?.role === 'SA'
 
-  const { events } = useEvents();
+  const { events } = useEvents()
 
   // Mock user RSVPS for demo
-  const [rsvpdEvents] = useState(new Set(events.filter(e => e.registeredUsers?.some(u => u.id === currentUser.id)).map(e => e.id)));
+  const [rsvpdEvents] = useState(
+    new Set(
+      events.filter((e) => e.registeredUsers?.some((u) => u.id === currentUser.id)).map((e) => e.id)
+    )
+  )
 
   // Filter States
-  const [activeTab, setActiveTab] = useState('Upcoming');
-  const [eventTypeFilter, setEventTypeFilter] = useState('All');
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [showMyRsvps, setShowMyRsvps] = useState(false);
-  const [viewMode, setViewMode] = useState('card');
+  const [activeTab, setActiveTab] = useState('Upcoming')
+  const [eventTypeFilter, setEventTypeFilter] = useState('All')
+  const [categoryFilter, setCategoryFilter] = useState('All')
+  const [showMyRsvps, setShowMyRsvps] = useState(false)
+  const [viewMode, setViewMode] = useState('card')
 
   // Sheet State
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
 
-  const now = new Date();
+  const now = new Date()
 
   // Computed Filters
   const filteredEvents = events.filter((event) => {
-    const eventDate = new Date(event.date);
-    if (activeTab === 'Upcoming' && eventDate < now) return false;
-    if (activeTab === 'Past' && eventDate >= now) return false;
+    const eventDate = new Date(event.date)
+    if (activeTab === 'Upcoming' && eventDate < now) return false
+    if (activeTab === 'Past' && eventDate >= now) return false
 
-    if (showMyRsvps && !rsvpdEvents.has(event.id)) return false;
-    if (eventTypeFilter !== 'All' && event.type !== eventTypeFilter) return false;
-    if (categoryFilter !== 'All' && event.category !== categoryFilter) return false;
+    if (showMyRsvps && !rsvpdEvents.has(event.id)) return false
+    if (eventTypeFilter !== 'All' && event.type !== eventTypeFilter) return false
+    if (categoryFilter !== 'All' && event.category !== categoryFilter) return false
 
-    return true;
-  });
+    return true
+  })
 
-  const upcomingEvents = events.filter(e => new Date(e.date) >= now).slice(0, 3);
-  const pastRecaps = events.filter(e => new Date(e.date) < now).slice(0, 2);
+  const upcomingEvents = events.filter((e) => new Date(e.date) >= now).slice(0, 3)
+  const pastRecaps = events.filter((e) => new Date(e.date) < now).slice(0, 2)
 
   const openEventSheet = (event) => {
-    setSelectedEvent(event);
-    setIsSheetOpen(true);
-  };
+    setSelectedEvent(event)
+    setIsSheetOpen(true)
+  }
 
   const closeEventSheet = () => {
-    setIsSheetOpen(false);
-    setTimeout(() => setSelectedEvent(null), 300); // delay to allow leave animation
-  };
+    setIsSheetOpen(false)
+    setTimeout(() => setSelectedEvent(null), 300) // delay to allow leave animation
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans animate-in fade-in duration-500">
@@ -69,11 +73,16 @@ const Events = () => {
       </div>
 
       <EventsSidebar
-        activeTab={activeTab} setActiveTab={setActiveTab}
-        eventTypeFilter={eventTypeFilter} setEventTypeFilter={setEventTypeFilter}
-        categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
-        showMyRsvps={showMyRsvps} setShowMyRsvps={setShowMyRsvps}
-        viewMode={viewMode} setViewMode={setViewMode}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        eventTypeFilter={eventTypeFilter}
+        setEventTypeFilter={setEventTypeFilter}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+        showMyRsvps={showMyRsvps}
+        setShowMyRsvps={setShowMyRsvps}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
       />
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -82,7 +91,7 @@ const Events = () => {
           {filteredEvents.length > 0 ? (
             viewMode === 'card' ? (
               <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
-                {filteredEvents.map(event => (
+                {filteredEvents.map((event) => (
                   <EventCard
                     key={event.id}
                     event={event}
@@ -106,25 +115,50 @@ const Events = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredEvents.map(event => {
-                        let dateObj = new Date();
-                        try { dateObj = new Date(event.date); } catch (e) { }
-                        
-                        const dateStr = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(dateObj);
-                        const timeStr = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).format(dateObj);
-                        
-                        const isRsvpd = rsvpdEvents.has(event.id);
-                        const isFree = event.price === 0 || !event.price;
-                        const isSoldOut = event.capacity && event.attendees >= event.capacity;
+                      {filteredEvents.map((event) => {
+                        let dateObj = new Date()
+                        try {
+                          dateObj = new Date(event.date)
+                        } catch {
+                          // Ignore
+                        }
+
+                        const dateStr = new Intl.DateTimeFormat('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }).format(dateObj)
+                        const timeStr = new Intl.DateTimeFormat('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        }).format(dateObj)
+
+                        const isRsvpd = rsvpdEvents.has(event.id)
+                        const isFree = event.price === 0 || !event.price
+                        const isSoldOut = event.capacity && event.attendees >= event.capacity
 
                         return (
                           <tr key={event.id} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4">
-                              <button onClick={() => openEventSheet(event)} className="flex flex-col text-left group">
-                                <span className="font-bold text-slate-900 group-hover:text-indigo-600 line-clamp-1 transition-colors">{event.title}</span>
+                              <button
+                                onClick={() => openEventSheet(event)}
+                                className="flex flex-col text-left group"
+                              >
+                                <span className="font-bold text-slate-900 group-hover:text-indigo-600 line-clamp-1 transition-colors">
+                                  {event.title}
+                                </span>
                                 <div className="flex items-center gap-2 mt-1">
-                                  {event.category && <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{event.category}</span>}
-                                  {event.type && <span className="text-[10px] uppercase font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">{event.type}</span>}
+                                  {event.category && (
+                                    <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                      {event.category}
+                                    </span>
+                                  )}
+                                  {event.type && (
+                                    <span className="text-[10px] uppercase font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                                      {event.type}
+                                    </span>
+                                  )}
                                 </div>
                               </button>
                             </td>
@@ -141,30 +175,42 @@ const Events = () => {
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                               <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
                                 {isFree ? (
-                                    <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-bold rounded-lg">FREE</span>
+                                  <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-bold rounded-lg">
+                                    FREE
+                                  </span>
                                 ) : (
-                                    <span className="flex items-center gap-1 font-semibold text-slate-700 w-16">
-                                        <Ticket size={14} className="text-slate-400" /> ₹{event.price}
-                                    </span>
+                                  <span className="flex items-center gap-1 font-semibold text-slate-700 w-16">
+                                    <Ticket size={14} className="text-slate-400" /> ₹{event.price}
+                                  </span>
                                 )}
-                                {isSoldOut && <span className="px-2 py-1 bg-rose-50 text-rose-600 text-[10px] font-bold uppercase rounded-lg">Sold Out</span>}
-                                </div>
+                                {isSoldOut && (
+                                  <span className="px-2 py-1 bg-rose-50 text-rose-600 text-[10px] font-bold uppercase rounded-lg">
+                                    Sold Out
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 text-right">
                               {isRsvpd ? (
-                                <button onClick={() => openEventSheet(event)} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 text-sm font-semibold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-200 w-full sm:w-auto">
+                                <button
+                                  onClick={() => openEventSheet(event)}
+                                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 text-sm font-semibold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-200 w-full sm:w-auto"
+                                >
                                   <CheckCircle2 size={16} /> Going
                                 </button>
                               ) : (
-                                <button onClick={() => openEventSheet(event)} className={`inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg transition-all shadow-sm w-full sm:w-auto ${isSoldOut ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                                <button
+                                  onClick={() => openEventSheet(event)}
+                                  className={`inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg transition-all shadow-sm w-full sm:w-auto ${isSoldOut ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                                >
                                   {isSoldOut ? 'Waitlist' : 'Details'}
                                 </button>
                               )}
                             </td>
                           </tr>
-                        );
+                        )
                       })}
                     </tbody>
                   </table>
@@ -186,18 +232,18 @@ const Events = () => {
 
         {/* Right Sidebar */}
         <div className="lg:w-80 shrink-0">
-          <EventsRightSidebar upcomingEvents={upcomingEvents} pastRecaps={pastRecaps} onEventClick={openEventSheet} />
+          <EventsRightSidebar
+            upcomingEvents={upcomingEvents}
+            pastRecaps={pastRecaps}
+            onEventClick={openEventSheet}
+          />
         </div>
       </div>
 
       {/* Event Details Sheet */}
-      <EventSheet 
-        event={selectedEvent} 
-        isOpen={isSheetOpen} 
-        onClose={closeEventSheet} 
-      />
+      <EventSheet event={selectedEvent} isOpen={isSheetOpen} onClose={closeEventSheet} />
     </div>
-  );
-};
+  )
+}
 
-export default Events;
+export default Events

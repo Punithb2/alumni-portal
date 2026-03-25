@@ -31,7 +31,7 @@ import {
   Building2,
   Megaphone,
   UsersRound,
-  Gift
+  Gift,
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
@@ -104,7 +104,12 @@ const SidebarContent = ({ collapsed, setCollapsed, onClose }) => {
       {/* ── Logo ── */}
       <div className="h-16 flex items-center px-4 justify-between flex-shrink-0 mt-4 mb-2">
         <div className="flex items-center gap-3 overflow-hidden ml-2 flex-shrink-0">
-          <img src="/favicon.ico" alt="Logo" className="w-12 h-12 object-contain select-none shadow-sm rounded-lg" onError={(e) => e.target.src = '/vite.svg'} />
+          <img
+            src="/favicon.ico"
+            alt="Logo"
+            className="w-12 h-12 object-contain select-none shadow-sm rounded-lg"
+            onError={(e) => (e.target.src = '/vite.svg')}
+          />
           {!collapsed && (
             <span className="font-bold text-2xl text-slate-900 whitespace-nowrap tracking-tight">
               AlumniPortal
@@ -152,8 +157,8 @@ const SidebarContent = ({ collapsed, setCollapsed, onClose }) => {
                     className={({ isActive }) =>
                       `group flex items-center gap-x-3 rounded-full px-4 py-2.5 text-[15px] font-medium transition-all duration-200 ${
                         isActive
-                        ? 'bg-[#eef5fe] text-blue-600'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          ? 'bg-[#eef5fe] text-blue-600'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                       }`
                     }
                     title={collapsed ? item.name : undefined}

@@ -51,9 +51,9 @@ const AdminClubs = Loadable(lazy(() => import('./pages/Admin/ClubsManager')))
 const DashboardRouter = () => {
   const { user } = useAuth()
   const role = user?.role
-  if (role === 'University' || role === 'SA') return <Navigate to="/admin" replace />
+  if (role === 'admin') return <Navigate to="/admin" replace />
 
-  if (role === 'Student') return <StudentDashboard />
+  if (role === 'student') return <StudentDashboard />
   return <AlumniDashboard />
 }
 
@@ -62,7 +62,7 @@ const DashboardRouter = () => {
 const JobsRouter = () => {
   const { user } = useAuth()
   const role = user?.role
-  if (role === 'Student') return <StudentJobBoard />
+  if (role === 'student') return <StudentJobBoard />
   return <AlumniJobBoard />
 }
 
@@ -112,7 +112,7 @@ const routes = [
       {
         path: '/events',
         element: (
-          <RoleGuard allowedRoles={['Alumni', 'Student', 'SA']}>
+          <RoleGuard allowedRoles={['alumni', 'student', 'admin']}>
             <Events />
           </RoleGuard>
         ),
@@ -120,7 +120,7 @@ const routes = [
       {
         path: '/events/:id',
         element: (
-          <RoleGuard allowedRoles={['Alumni', 'Student', 'SA']}>
+          <RoleGuard allowedRoles={['alumni', 'student', 'admin']}>
             <EventDetail />
           </RoleGuard>
         ),
@@ -133,7 +133,7 @@ const routes = [
       {
         path: '/campaigns',
         element: (
-          <RoleGuard allowedRoles={['Alumni', 'Student', 'SA']}>
+          <RoleGuard allowedRoles={['alumni', 'student', 'admin']}>
             <CampaignList />
           </RoleGuard>
         ),
@@ -141,7 +141,7 @@ const routes = [
       {
         path: '/campaigns/:id',
         element: (
-          <RoleGuard allowedRoles={['Alumni', 'Student', 'SA']}>
+          <RoleGuard allowedRoles={['alumni', 'student', 'admin']}>
             <CampaignDetail />
           </RoleGuard>
         ),
@@ -149,17 +149,17 @@ const routes = [
       {
         path: '/giving',
         element: (
-          <RoleGuard allowedRoles={['Alumni', 'Student', 'SA']}>
+          <RoleGuard allowedRoles={['alumni', 'student', 'admin']}>
             <MyGiving />
           </RoleGuard>
         ),
       },
 
-      // ── Jobs (Alumni + Student + SA only; Admin has no job board) ──
+      // ── Jobs (Alumni + Student + admin only; Admin has no job board) ──
       {
         path: '/jobs',
         element: (
-          <RoleGuard allowedRoles={['Alumni', 'Student', 'SA']}>
+          <RoleGuard allowedRoles={['alumni', 'student', 'admin']}>
             <JobsRouter />
           </RoleGuard>
         ),
@@ -172,7 +172,7 @@ const routes = [
       {
         path: '/admin',
         element: (
-          <RoleGuard allowedRoles={['University', 'SA']}>
+          <RoleGuard allowedRoles={['admin']}>
             <AdminDashboard />
           </RoleGuard>
         ),
@@ -180,7 +180,7 @@ const routes = [
       {
         path: '/admin/users',
         element: (
-          <RoleGuard allowedRoles={['University', 'SA']}>
+          <RoleGuard allowedRoles={['admin']}>
             <AdminUsers />
           </RoleGuard>
         ),
@@ -188,7 +188,7 @@ const routes = [
       {
         path: '/admin/news',
         element: (
-          <RoleGuard allowedRoles={['University', 'SA']}>
+          <RoleGuard allowedRoles={['admin']}>
             <AdminNews />
           </RoleGuard>
         ),
@@ -196,7 +196,7 @@ const routes = [
       {
         path: '/admin/campaigns',
         element: (
-          <RoleGuard allowedRoles={['University', 'SA']}>
+          <RoleGuard allowedRoles={['admin']}>
             <AdminCampaigns />
           </RoleGuard>
         ),
@@ -204,7 +204,7 @@ const routes = [
       {
         path: '/admin/events',
         element: (
-          <RoleGuard allowedRoles={['University', 'SA']}>
+          <RoleGuard allowedRoles={['admin']}>
             <AdminEvents />
           </RoleGuard>
         ),
@@ -212,7 +212,7 @@ const routes = [
       {
         path: '/admin/clubs',
         element: (
-          <RoleGuard allowedRoles={['University', 'SA']}>
+          <RoleGuard allowedRoles={['admin']}>
             <AdminClubs />
           </RoleGuard>
         ),

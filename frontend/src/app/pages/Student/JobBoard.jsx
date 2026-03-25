@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { MOCK_JOBS } from '../../utils/mockData'
 import { dummyJobs } from '../../data/dummyData'
-import useAuth from '../../hooks/useAuth'
 
 import JobsFilterBar from '../../components/Jobs/JobsFilterBar'
 import JobCard from '../../components/Jobs/JobCard'
@@ -34,13 +33,10 @@ const normalizeJob = (job) => ({
   logo: job.logo || null,
   postedBy: job.posted_by,
   canRefer: Math.random() > 0.7, // Mock referral status
-  alumniPosted: Math.random() > 0.5 // Mock alumni posted status
+  alumniPosted: Math.random() > 0.5, // Mock alumni posted status
 })
 
 const StudentJobBoard = () => {
-  const { user } = useAuth()
-  const role = user?.role || 'Student'
-
   // State
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Types')
@@ -48,7 +44,7 @@ const StudentJobBoard = () => {
   const [locationFilter, setLocationFilter] = useState('All Locations')
   const [expFilter, setExpFilter] = useState('All Levels')
   const [alumniRecommendedOnly, setAlumniRecommendedOnly] = useState(false)
-  
+
   const [activeTab, setActiveTab] = useState('all') // 'all', 'internships', 'saved'
   const [showModal, setShowModal] = useState(false)
   const [selectedJob, setSelectedJob] = useState(null)
@@ -58,18 +54,23 @@ const StudentJobBoard = () => {
   // Derived Data
   const allJobs = useMemo(() => {
     const defaultMock = (MOCK_JOBS || []).map(normalizeJob)
-    const dummys = dummyJobs.map(j => ({...j, postedDate: 'Recently'}))
+    const dummys = dummyJobs.map((j) => ({ ...j, postedDate: 'Recently' }))
     return [...dummys, ...defaultMock].sort((a, b) => {
-        const idA = parseInt(a.id) || 0
-        const idB = parseInt(b.id) || 0
-        return idA - idB
+      const idA = parseInt(a.id) || 0
+      const idB = parseInt(b.id) || 0
+      return idA - idB
     })
   }, [])
 
   const internships = useMemo(() => allJobs.filter((j) => j.type === 'Internship'), [allJobs])
 
   const filteredJobs = useMemo(() => {
-    let list = activeTab === 'internships' ? internships : (activeTab === 'saved' ? allJobs.filter(j => savedJobIds.has(j.id)) : allJobs)
+    let list =
+      activeTab === 'internships'
+        ? internships
+        : activeTab === 'saved'
+          ? allJobs.filter((j) => savedJobIds.has(j.id))
+          : allJobs
 
     return list.filter((job) => {
       const matchesSearch =
@@ -91,16 +92,29 @@ const StudentJobBoard = () => {
         expFilter === 'All Levels'
 
       const matchesInd = industryFilter === 'All Industries'
-      
-      const matchesAlumni = alumniRecommendedOnly ? (job.alumniRecommended || job.alumniPosted || job.postedByRole === 'Alumni') : true
+
+      const matchesAlumni = alumniRecommendedOnly
+        ? job.alumniRecommended || job.alumniPosted || job.postedByRole === 'Alumni'
+        : true
 
       return matchesSearch && matchesType && matchesLoc && matchesExp && matchesInd && matchesAlumni
     })
-  }, [allJobs, internships, activeTab, search, typeFilter, locationFilter, expFilter, industryFilter, savedJobIds, alumniRecommendedOnly])
+  }, [
+    allJobs,
+    internships,
+    activeTab,
+    search,
+    typeFilter,
+    locationFilter,
+    expFilter,
+    industryFilter,
+    savedJobIds,
+    alumniRecommendedOnly,
+  ])
 
   // Handlers
   const toggleSaveJob = (id) => {
-    setSavedJobIds(prev => {
+    setSavedJobIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -131,11 +145,16 @@ const StudentJobBoard = () => {
 
       {/* Horizontal Filters */}
       <JobsFilterBar
-        search={search} setSearch={setSearch}
-        typeFilter={typeFilter} setTypeFilter={setTypeFilter}
-        industryFilter={industryFilter} setIndustryFilter={setIndustryFilter}
-        locationFilter={locationFilter} setLocationFilter={setLocationFilter}
-        expFilter={expFilter} setExpFilter={setExpFilter}
+        search={search}
+        setSearch={setSearch}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
+        industryFilter={industryFilter}
+        setIndustryFilter={setIndustryFilter}
+        locationFilter={locationFilter}
+        setLocationFilter={setLocationFilter}
+        expFilter={expFilter}
+        setExpFilter={setExpFilter}
         alumniRecommendedOnly={alumniRecommendedOnly}
         setAlumniRecommendedOnly={setAlumniRecommendedOnly}
       />
@@ -165,7 +184,7 @@ const StudentJobBoard = () => {
 
           {filteredJobs.length > 0 ? (
             <div className="flex flex-col">
-              {filteredJobs.map(job => (
+              {filteredJobs.map((job) => (
                 <JobCard
                   key={job.id}
                   job={job}

@@ -195,10 +195,11 @@ export const PillTab = ({ tabs, activeTab, onChange }) => (
         key={tab.id}
         onClick={() => onChange(tab.id)}
         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150
-                    ${activeTab === tab.id
-            ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5'
-            : 'text-slate-500 hover:text-slate-700'
-          }`}
+                    ${
+                      activeTab === tab.id
+                        ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/5'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
       >
         {tab.label}
       </button>

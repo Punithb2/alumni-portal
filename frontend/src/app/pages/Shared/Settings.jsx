@@ -329,7 +329,7 @@ const Settings = () => {
     menteeTypes: ['Undergraduates', 'Recent Grads'],
     availabilitySlots: ['Weekends only', 'Evenings PST'],
     mode: ['Online Video Calls'],
-    maxMentees: 2
+    maxMentees: 2,
   })
 
   // ── Password state ────────────────────────────────────────────────────────
@@ -700,15 +700,29 @@ const Settings = () => {
   // MENTORSHIP — Alumni only
   // ──────────────────────────────────────────────────────────────────────────
   const renderMentorship = () => {
-    const areas = ['Networking', 'Career Advice', 'Internships', 'Job Referrals', 'Resume Review', 'Interview Prep', 'Entrepreneurship', 'Higher Education']
-    const menteeTypes = ['Incoming Freshmen', 'Undergraduates', 'Grad Students', 'Recent Grads', 'Career Switchers']
+    const areas = [
+      'Networking',
+      'Career Advice',
+      'Internships',
+      'Job Referrals',
+      'Resume Review',
+      'Interview Prep',
+      'Entrepreneurship',
+      'Higher Education',
+    ]
+    const menteeTypes = [
+      'Incoming Freshmen',
+      'Undergraduates',
+      'Grad Students',
+      'Recent Grads',
+      'Career Switchers',
+    ]
 
-    const toggleArrayItem = (field, item) => (
-      setMentorshipPrefs(p => ({
+    const toggleArrayItem = (field, item) =>
+      setMentorshipPrefs((p) => ({
         ...p,
-        [field]: p[field].includes(item) ? p[field].filter(i => i !== item) : [...p[field], item]
+        [field]: p[field].includes(item) ? p[field].filter((i) => i !== item) : [...p[field], item],
       }))
-    )
 
     return (
       <div className="space-y-8">
@@ -723,7 +737,9 @@ const Settings = () => {
               label="Currently accepting mentees"
               description="Allow students to request mentorship from you."
               checked={mentorshipPrefs.openToMentoring}
-              onChange={() => setMentorshipPrefs(p => ({ ...p, openToMentoring: !p.openToMentoring }))}
+              onChange={() =>
+                setMentorshipPrefs((p) => ({ ...p, openToMentoring: !p.openToMentoring }))
+              }
             />
           </div>
           <div className="mt-4">
@@ -732,7 +748,7 @@ const Settings = () => {
               id="maxMentees"
               type="number"
               value={mentorshipPrefs.maxMentees}
-              onChange={(e) => setMentorshipPrefs(p => ({ ...p, maxMentees: e.target.value }))}
+              onChange={(e) => setMentorshipPrefs((p) => ({ ...p, maxMentees: e.target.value }))}
             />
           </div>
         </FormSection>
@@ -1018,7 +1034,7 @@ const Settings = () => {
                 label={item.label}
                 description={item.desc}
                 checked={item.def}
-                onChange={() => { }}
+                onChange={() => {}}
               />
             ))}
           </div>
@@ -1033,19 +1049,19 @@ const Settings = () => {
               label="Auto-approve alumni job posts"
               description="Skip manual review for verified alumni postings."
               checked={true}
-              onChange={() => { }}
+              onChange={() => {}}
             />
             <ToggleItem
               label="Auto-approve event listings"
               description="Admins can post events without secondary review."
               checked={false}
-              onChange={() => { }}
+              onChange={() => {}}
             />
             <ToggleItem
               label="Allow anonymous directory browsing"
               description="Non-logged-in visitors can view alumni directory."
               checked={false}
-              onChange={() => { }}
+              onChange={() => {}}
             />
           </div>
         </FormSection>
@@ -1123,19 +1139,19 @@ const Settings = () => {
               label="Admins can approve registrations"
               description="Allow admins to approve or reject new member sign-ups."
               checked={true}
-              onChange={() => { }}
+              onChange={() => {}}
             />
             <ToggleItem
               label="Admins can post announcements"
               description="Allow admins to post platform-wide announcements."
               checked={true}
-              onChange={() => { }}
+              onChange={() => {}}
             />
             <ToggleItem
               label="Admins can export reports"
               description="Allow admins to download platform usage reports."
               checked={false}
-              onChange={() => { }}
+              onChange={() => {}}
             />
           </div>
         </FormSection>
@@ -1165,7 +1181,7 @@ const Settings = () => {
             label="Data retention period"
             id="retention"
             value="12 months"
-            onChange={() => { }}
+            onChange={() => {}}
             options={['3 months', '6 months', '12 months', '24 months', 'Indefinite']}
           />
           <div className="divide-y divide-gray-100">
@@ -1173,13 +1189,13 @@ const Settings = () => {
               label="Automated daily backups"
               description="Back up the database every 24 hours automatically."
               checked={true}
-              onChange={() => { }}
+              onChange={() => {}}
             />
             <ToggleItem
               label="Anonymise deleted accounts"
               description="Replace PII with anonymised data on account deletion."
               checked={true}
-              onChange={() => { }}
+              onChange={() => {}}
             />
           </div>
           <button className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors">
@@ -1737,9 +1753,10 @@ const Settings = () => {
                 type="button"
                 onClick={() => setActiveSection(item.id)}
                 className={`whitespace-nowrap border-b-2 pb-4 text-sm font-medium transition-colors
-                  ${activeSection === item.id
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  ${
+                    activeSection === item.id
+                      ? 'border-indigo-600 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                   }`}
               >
                 {item.label}

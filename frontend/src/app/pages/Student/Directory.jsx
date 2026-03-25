@@ -1,10 +1,23 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import DirectoryFilters from '../../components/DirectoryFilters'
 import { MOCK_PROFILES } from '../../utils/mockData'
-import { Mail, MapPin, Briefcase, ChevronRight, UserPlus, BookOpen, Home, Download, Star, CheckCircle, Search, FileText } from 'lucide-react'
+import {
+  Mail,
+  MapPin,
+  Briefcase,
+  ChevronRight,
+  UserPlus,
+  BookOpen,
+  Home,
+  Download,
+  Star,
+  CheckCircle,
+  Search,
+  FileText,
+} from 'lucide-react'
 import ProfileSheet from '../Alumni/ProfileSheet'
 import DirectoryMap from '../../components/DirectoryMap'
-
+import { STUDENT_FILTER_OPTIONS } from '../../data/directoryFilters'
 
 export default function StudentDirectory() {
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
@@ -17,7 +30,7 @@ export default function StudentDirectory() {
   })
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery)
@@ -27,75 +40,27 @@ export default function StudentDirectory() {
 
   const [sortOption, setSortOption] = useState('newest')
   const [selectedProfile, setSelectedProfile] = useState(null)
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 24;
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 24
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, debouncedSearchQuery, sortOption]);
-
-  const filterOptions = [
-    {
-      id: 'industry',
-      title: 'Industry',
-      options: [
-        { label: 'Technology', value: 'Technology', count: 150 },
-        { label: 'Finance', value: 'Finance', count: 80 },
-        { label: 'Consulting', value: 'Consulting', count: 60 },
-        { label: 'Media', value: 'Media', count: 40 },
-        { label: 'Science', value: 'Science', count: 30 },
-      ],
-    },
-    {
-      id: 'mentorship',
-      title: 'Mentorship',
-      options: [
-        { label: 'Open to Mentoring', value: 'yes', count: 120 },
-        { label: 'Hiring', value: 'hiring', count: 45 },
-        { label: 'Available for Coffee Chat', value: 'coffee', count: 90 },
-      ],
-    },
-    {
-      id: 'company',
-      title: 'Company',
-      options: [
-        { label: 'Google', value: 'Google', count: 25 },
-        { label: 'Microsoft', value: 'Microsoft', count: 20 },
-        { label: 'Amazon', value: 'Amazon', count: 15 },
-        { label: 'Startup', value: 'Startup', count: 50 },
-      ],
-    },
-    {
-      id: 'skills',
-      title: 'Skills / Expertise',
-      options: [
-        { label: 'React', value: 'React', count: 80 },
-        { label: 'Python', value: 'Python', count: 70 },
-        { label: 'System Design', value: 'System Design', count: 65 },
-        { label: 'Product Strategy', value: 'Product Strategy', count: 40 },
-        { label: 'Machine Learning', value: 'Machine Learning', count: 35 },
-      ],
-    },
-    {
-      id: 'hiring',
-      title: 'Hiring Status',
-      options: [
-        { label: 'Currently Hiring', value: 'yes', count: 45 },
-      ],
-    },
-  ]
+    setTimeout(() => {
+      setCurrentPage(1)
+    }, 0)
+  }, [filters, debouncedSearchQuery, sortOption])
 
   const filteredProfiles = useMemo(() => {
     let result = [...MOCK_PROFILES]
 
     if (debouncedSearchQuery) {
       const q = debouncedSearchQuery.toLowerCase()
-      result = result.filter(p =>
-        p.first_name.toLowerCase().includes(q) ||
-        p.last_name.toLowerCase().includes(q) ||
-        (p.headline && p.headline.toLowerCase().includes(q)) ||
-        (p.current_company && p.current_company.toLowerCase().includes(q))
+      result = result.filter(
+        (p) =>
+          p.first_name.toLowerCase().includes(q) ||
+          p.last_name.toLowerCase().includes(q) ||
+          (p.headline && p.headline.toLowerCase().includes(q)) ||
+          (p.current_company && p.current_company.toLowerCase().includes(q))
       )
     }
 
@@ -139,9 +104,9 @@ export default function StudentDirectory() {
   }, [filters, sortOption, debouncedSearchQuery])
 
   const paginatedProfiles = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredProfiles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredProfiles, currentPage]);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    return filteredProfiles.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [filteredProfiles, currentPage])
 
   const renderGridCard = (profile) => (
     <div
@@ -164,15 +129,19 @@ export default function StudentDirectory() {
         <p className="text-[13px] text-gray-500 font-medium w-full truncate mt-1 px-2">
           {profile.headline || profile.current_position || 'Professional'}
         </p>
-        
+
         {(profile.current_company || profile.city) && (
           <div className="text-[12px] text-gray-500 mt-2 flex items-center justify-center gap-1.5 w-full px-2">
-            {profile.current_company && <span className="font-medium text-gray-700 truncate">{profile.current_company}</span>}
-            {profile.current_company && profile.city && <span className="text-gray-300 shrink-0">•</span>}
+            {profile.current_company && (
+              <span className="font-medium text-gray-700 truncate">{profile.current_company}</span>
+            )}
+            {profile.current_company && profile.city && (
+              <span className="text-gray-300 shrink-0">•</span>
+            )}
             {profile.city && <span className="truncate">{profile.city}</span>}
           </div>
         )}
-        
+
         {(profile.department || profile.graduation_year) && (
           <div className="mt-3 flex flex-wrap justify-center gap-1.5 w-full">
             {profile.department && (
@@ -197,13 +166,15 @@ export default function StudentDirectory() {
         filters={filters}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        filterOptions={filterOptions}
+        filterOptions={STUDENT_FILTER_OPTIONS}
         sortOption={sortOption}
         onSortChange={setSortOption}
         onFilterChange={(sectionId, newValues) =>
           setFilters((prev) => ({ ...prev, [sectionId]: newValues }))
         }
-        onClearFilters={() => setFilters({ industry: [], company: [], mentorship: [], skills: [], hiring: [] })}
+        onClearFilters={() =>
+          setFilters({ industry: [], company: [], mentorship: [], skills: [], hiring: [] })
+        }
         totalResults={filteredProfiles.length}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
@@ -216,9 +187,9 @@ export default function StudentDirectory() {
               </div>
               {filteredProfiles.length > ITEMS_PER_PAGE && (
                 <div className="flex justify-between items-center mt-8 px-4">
-                  <button 
+                  <button
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
                   >
                     Previous
@@ -226,9 +197,9 @@ export default function StudentDirectory() {
                   <span className="text-sm text-gray-500 font-medium">
                     Page {currentPage} of {Math.ceil(filteredProfiles.length / ITEMS_PER_PAGE)}
                   </span>
-                  <button 
+                  <button
                     disabled={currentPage * ITEMS_PER_PAGE >= filteredProfiles.length}
-                    onClick={() => setCurrentPage(p => p + 1)}
+                    onClick={() => setCurrentPage((p) => p + 1)}
                     className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
                   >
                     Next
@@ -237,7 +208,7 @@ export default function StudentDirectory() {
               )}
             </>
           )}
-          
+
           {/* List View (Datatable) */}
           {viewMode === 'list' && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -255,23 +226,30 @@ export default function StudentDirectory() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {paginatedProfiles.map((p) => (
-                      <tr 
-                        key={p.id} 
+                      <tr
+                        key={p.id}
                         onClick={() => setSelectedProfile(p)}
                         className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <img
-                              src={p.avatar || `https://ui-avatars.com/api/?name=${p.first_name}+${p.last_name}&background=f3f4f6&color=2563eb`}
+                              src={
+                                p.avatar ||
+                                `https://ui-avatars.com/api/?name=${p.first_name}+${p.last_name}&background=f3f4f6&color=2563eb`
+                              }
                               alt={p.first_name}
                               className="w-10 h-10 rounded-full object-cover border border-gray-200 group-hover:border-blue-300"
                             />
                             <div>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-gray-900 group-hover:text-blue-600">{p.first_name} {p.last_name}</span>
+                                <span className="font-semibold text-gray-900 group-hover:text-blue-600">
+                                  {p.first_name} {p.last_name}
+                                </span>
                               </div>
-                              <span className="text-xs text-gray-500 line-clamp-1">{p.current_position || 'Professional'}</span>
+                              <span className="text-xs text-gray-500 line-clamp-1">
+                                {p.current_position || 'Professional'}
+                              </span>
                             </div>
                           </div>
                         </td>
@@ -284,7 +262,9 @@ export default function StudentDirectory() {
                         <td className="px-6 py-4 hidden lg:table-cell">
                           <div className="flex items-center gap-1.5 text-sm text-gray-600">
                             <Briefcase className="w-4 h-4 text-gray-400" />
-                            <span className="truncate max-w-[150px]">{p.current_company || '-'}</span>
+                            <span className="truncate max-w-[150px]">
+                              {p.current_company || '-'}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4 hidden lg:table-cell">
@@ -296,14 +276,20 @@ export default function StudentDirectory() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={(e) => { e.stopPropagation(); setSelectedProfile(p); }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedProfile(p)
+                              }}
                               className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
                               title="View Profile"
                             >
                               <FileText className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); alert(`Message mock feature triggered for ${p.first_name}!`); }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                alert(`Message mock feature triggered for ${p.first_name}!`)
+                              }}
                               className="p-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
                               title="Message"
                             >
@@ -316,12 +302,12 @@ export default function StudentDirectory() {
                   </tbody>
                 </table>
               </div>
-              
+
               {filteredProfiles.length > ITEMS_PER_PAGE && (
                 <div className="flex justify-between items-center px-6 py-4 border-t border-gray-200">
-                  <button 
+                  <button
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
                   >
                     Previous
@@ -329,9 +315,9 @@ export default function StudentDirectory() {
                   <span className="text-sm text-gray-500 font-medium">
                     Page {currentPage} of {Math.ceil(filteredProfiles.length / ITEMS_PER_PAGE)}
                   </span>
-                  <button 
+                  <button
                     disabled={currentPage * ITEMS_PER_PAGE >= filteredProfiles.length}
-                    onClick={() => setCurrentPage(p => p + 1)}
+                    onClick={() => setCurrentPage((p) => p + 1)}
                     className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
                   >
                     Next
@@ -342,10 +328,7 @@ export default function StudentDirectory() {
           )}
 
           {viewMode === 'map' && (
-            <DirectoryMap 
-              profiles={filteredProfiles} 
-              onProfileClick={setSelectedProfile} 
-            />
+            <DirectoryMap profiles={filteredProfiles} onProfileClick={setSelectedProfile} />
           )}
 
           {filteredProfiles.length === 0 && (
@@ -358,7 +341,9 @@ export default function StudentDirectory() {
                 We couldn't find any profiles matching your current search or filter criteria.
               </p>
               <button
-                onClick={() => setFilters({ industry: [], company: [], mentorship: [], skills: [], hiring: [] })}
+                onClick={() =>
+                  setFilters({ industry: [], company: [], mentorship: [], skills: [], hiring: [] })
+                }
                 className="px-6 py-2.5 bg-white border-2 border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm text-sm sm:text-base"
               >
                 Clear all filters

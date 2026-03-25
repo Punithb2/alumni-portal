@@ -2,16 +2,33 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { GraduationCap, Briefcase, CalendarDays, Rocket, Award } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
-import { useGamification, BADGES } from '../../contexts/GamificationContext'
+import { useGamification } from '../../hooks/useGamification'
+import { BADGES } from '../../data/gamification'
 import { OnlineHighlightRow, PostComposer, FeedPost } from '../../components/DashboardComponents'
 import { STUDENT_POSTS } from '../../data/feedStore'
 
 const MENTOR_USERS = [
-  { title: 'Taylor', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg' },
+  {
+    title: 'Taylor',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg',
+  },
   { title: 'Alex', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/male/21.jpg' },
-  { title: 'Jamie', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/female/22.jpg' },
-  { title: 'Morgan', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/male/23.jpg' },
-  { title: 'Riley', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/female/24.jpg' },
+  {
+    title: 'Jamie',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/female/22.jpg',
+  },
+  {
+    title: 'Morgan',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/male/23.jpg',
+  },
+  {
+    title: 'Riley',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/female/24.jpg',
+  },
 ]
 
 const PAGE_SIZE = 5
@@ -27,34 +44,37 @@ const StudentDashboard = () => {
   const visiblePosts = allPosts.slice(0, visibleCount)
   const hasMore = visibleCount < allPosts.length
 
-  const handleNewPost = useCallback(({ text, postType, images }) => {
-    const newPost = {
-      id: Date.now(),
-      author: user?.displayName || user?.name || 'You',
-      role: 'Student',
-      avatar: user?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg',
-      verified: false,
-      verifiedType: null,
-      time: 'Just now',
-      type: postType || 'UPDATE',
-      content: text,
-      images: images || [],
-      reactions: {},
-      comments: 0,
-      shares: 0,
-      mockComments: [],
-    }
-    setAllPosts((prev) => [newPost, ...prev])
-  }, [user])
+  const handleNewPost = useCallback(
+    ({ text, postType, images }) => {
+      const newPost = {
+        id: Date.now(),
+        author: user?.displayName || user?.name || 'You',
+        role: 'Student',
+        avatar: user?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg',
+        verified: false,
+        verifiedType: null,
+        time: 'Just now',
+        type: postType || 'UPDATE',
+        content: text,
+        images: images || [],
+        reactions: {},
+        comments: 0,
+        shares: 0,
+        mockComments: [],
+      }
+      setAllPosts((prev) => [newPost, ...prev])
+    },
+    [user]
+  )
 
   const loadMore = useCallback(() => {
     if (isLoadingMore || !hasMore) return
     setIsLoadingMore(true)
     setTimeout(() => {
-      setVisibleCount((c) => Math.min(c + PAGE_SIZE, ALL_POSTS.length))
+      setVisibleCount((c) => Math.min(c + PAGE_SIZE, allPosts.length))
       setIsLoadingMore(false)
     }, 800)
-  }, [isLoadingMore, hasMore])
+  }, [isLoadingMore, hasMore, allPosts.length])
 
   useEffect(() => {
     const sentinel = sentinelRef.current
@@ -110,11 +130,12 @@ const StudentDashboard = () => {
 
         {/* Middle Feed Column */}
         <div className="flex flex-col min-w-0 lg:col-span-2">
-          <PostComposer currentUser={user} placeholder="Ask a question or share a project..." onPost={handleNewPost} />
-          <OnlineHighlightRow
-            title="Active Mentors to Connect With"
-            users={MENTOR_USERS}
+          <PostComposer
+            currentUser={user}
+            placeholder="Ask a question or share a project..."
+            onPost={handleNewPost}
           />
+          <OnlineHighlightRow title="Active Mentors to Connect With" users={MENTOR_USERS} />
           <div className="space-y-0">
             {visiblePosts.map((post) => (
               <FeedPost key={post.id} post={post} currentUser={user} />
@@ -157,17 +178,24 @@ const StudentDashboard = () => {
               </div>
               <div>
                 <p className="text-[13px] font-bold text-slate-800">Total Points</p>
-                <p className="text-[12px] text-slate-500 font-medium">Keep participating to earn more</p>
+                <p className="text-[12px] text-slate-500 font-medium">
+                  Keep participating to earn more
+                </p>
               </div>
             </div>
             {earnedBadges?.length > 0 && (
               <div>
-                <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">Unlocked Badges</p>
+                <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Unlocked Badges
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {earnedBadges.map(bId => {
-                    const badge = BADGES[bId] || BADGES.NEWCOMER;
+                  {earnedBadges.map((bId) => {
+                    const badge = BADGES[bId] || BADGES.NEWCOMER
                     return (
-                      <div key={bId} className="group relative flex items-center justify-center w-8 h-8 bg-slate-50 border border-slate-200 rounded-full cursor-help hover:bg-indigo-50">
+                      <div
+                        key={bId}
+                        className="group relative flex items-center justify-center w-8 h-8 bg-slate-50 border border-slate-200 rounded-full cursor-help hover:bg-indigo-50"
+                      >
                         <span>{badge.icon}</span>
                         {/* Tooltip */}
                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-2 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center">

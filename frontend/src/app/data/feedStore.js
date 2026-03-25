@@ -12,14 +12,14 @@ export const REACTIONS = []
 
 // Each post shape:
 // { id, author, role, avatar, verified, verifiedType, time, type, content, images[], reactions{}, comments, shares, mockComments[] }
-const makePosts = (variant) => [
+const makePosts = (_variant) => [
   {
     id: 1,
     author: 'Taylor Settler',
     role: 'Product Manager at Webflow',
     avatar: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg',
     verified: true,
-    verifiedType: 'alumni',  // alumni | official
+    verifiedType: 'alumni', // alumni | official
     time: '2h ago',
     type: 'ACHIEVEMENT',
     content: `Just hit a huge milestone. Our team shipped the most requested feature in Webflow's history — and we did it in record time.\n\nProud of every single person involved. This one's for the grinders.`,
@@ -106,7 +106,7 @@ const makePosts = (variant) => [
         id: 4,
         author: 'Kuz Pewee',
         avatar: 'https://xsgames.co/randomusers/assets/avatars/male/34.jpg',
-        text: 'Booked Thursday! Can\'t wait. Thanks David.',
+        text: "Booked Thursday! Can't wait. Thanks David.",
         time: '4h ago',
         likes: 3,
         replies: [
@@ -126,7 +126,8 @@ const makePosts = (variant) => [
     id: 3,
     author: 'University Career Center',
     role: 'Official Department',
-    avatar: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=200',
+    avatar:
+      'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=200',
     verified: true,
     verifiedType: 'official',
     time: '8h ago',
@@ -150,7 +151,8 @@ const makePosts = (variant) => [
           {
             id: 901,
             author: 'University Career Center',
-            avatar: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=200',
+            avatar:
+              'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=200',
             text: 'Yes! Over 25 fully remote companies are confirmed. Full list on the portal.',
             time: '45m ago',
             likes: 14,
@@ -161,7 +163,7 @@ const makePosts = (variant) => [
         id: 8,
         author: 'Morgan Smith',
         avatar: 'https://xsgames.co/randomusers/assets/avatars/male/23.jpg',
-        text: 'Can\'t wait! My resume is ready 💪',
+        text: "Can't wait! My resume is ready 💪",
         time: '3h ago',
         likes: 5,
         replies: [],
@@ -187,7 +189,7 @@ const makePosts = (variant) => [
         id: 12,
         author: 'Taylor Settler',
         avatar: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg',
-        text: '100% agree. Communication is the skill multiplier. A mediocre design explained brilliantly beats a great design that the team can\'t rally behind.',
+        text: "100% agree. Communication is the skill multiplier. A mediocre design explained brilliantly beats a great design that the team can't rally behind.",
         time: '20h ago',
         likes: 29,
         replies: [],
@@ -264,16 +266,18 @@ const makePosts = (variant) => [
     id: 6 + i,
     author: i % 2 === 0 ? 'Taylor Settler' : 'David Wilson',
     role: i % 2 === 0 ? 'Product Manager at Webflow' : 'Senior Software Engineer at Stripe',
-    avatar: i % 2 === 0
-      ? 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg'
-      : 'https://xsgames.co/randomusers/assets/avatars/male/21.jpg',
+    avatar:
+      i % 2 === 0
+        ? 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg'
+        : 'https://xsgames.co/randomusers/assets/avatars/male/21.jpg',
     verified: true,
     verifiedType: 'alumni',
     time: `${3 + i}d ago`,
     type: i % 3 === 0 ? 'QUESTION' : 'UPDATE',
-    content: i % 2 === 0
-      ? `If anyone is looking for advice breaking into product management as a new grad, my calendar is open next week for Office Hours. Connect with me in the mentor hub!`
-      : `Reflecting on ${i + 1} years of experience. Every failure taught me something irreplaceable. Looking forward to sharing more soon.`,
+    content:
+      i % 2 === 0
+        ? `If anyone is looking for advice breaking into product management as a new grad, my calendar is open next week for Office Hours. Connect with me in the mentor hub!`
+        : `Reflecting on ${i + 1} years of experience. Every failure taught me something irreplaceable. Looking forward to sharing more soon.`,
     images: [],
     reactions: { '👍': 15 + i * 4, '❤️': 8 + i * 2 },
     comments: 2 + i,

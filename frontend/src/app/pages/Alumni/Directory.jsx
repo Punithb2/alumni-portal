@@ -1,9 +1,9 @@
-// src/app/pages/Alumni/Directory.jsx
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import DirectoryFilters from '../../components/DirectoryFilters'
 import { MOCK_PROFILES } from '../../utils/mockData'
+import api from '../../utils/api'
+import { ALUMNI_FILTER_OPTIONS } from '../../data/directoryFilters'
 import {
-  Mail,
   MapPin,
   Briefcase,
   ChevronRight,
@@ -35,9 +35,31 @@ export default function AlumniDirectory() {
   })
   const [willingToMentor, setWillingToMentor] = useState(false)
   const [sortOption, setSortOption] = useState('newest')
+  const [backendProfiles, setBackendProfiles] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 24
+
+  // Fetch Profiles from Backend
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        setIsLoading(false)
+        return
+      }
+      try {
+        const response = await api.get('/profiles/')
+        const profilesData = response.data.results || response.data
+        setBackendProfiles(profilesData)
+      } catch (error) {
+        console.error('Failed to fetch profiles', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchProfiles()
+  }, [])
 
   const handleClearAllFilters = () => {
     setFilters({
@@ -54,81 +76,9 @@ export default function AlumniDirectory() {
     setCurrentPage(1)
   }
 
-  // Expanded Filter Options to match requirements
-  const filterOptions = [
-    {
-      id: 'year',
-      title: 'Graduation Year',
-      options: [
-        { label: '2024', value: '2024', count: 100 },
-        { label: '2023', value: '2023', count: 90 },
-        { label: '2022', value: '2022', count: 85 },
-        { label: '2021', value: '2021', count: 80 },
-        { label: 'Before 2020', value: 'older', count: 200 },
-      ],
-    },
-    {
-      id: 'department',
-      title: 'Department / Major',
-      options: [
-        { label: 'Computer Science', value: 'Computer Science', count: 150 },
-        { label: 'Business Administration', value: 'Business Administration', count: 120 },
-        { label: 'Engineering', value: 'Engineering', count: 90 },
-        { label: 'Arts & Design', value: 'Arts', count: 45 },
-      ],
-    },
-    {
-      id: 'industry',
-      title: 'Industry',
-      options: [
-        { label: 'Technology', value: 'Technology', count: 120 },
-        { label: 'Finance', value: 'Finance', count: 45 },
-        { label: 'Healthcare', value: 'Healthcare', count: 30 },
-        { label: 'Education', value: 'Education', count: 25 },
-        { label: 'Marketing', value: 'Marketing', count: 10 },
-      ],
-    },
-    {
-      id: 'company',
-      title: 'Company',
-      options: [
-        { label: 'Google', value: 'Google', count: 50 },
-        { label: 'Microsoft', value: 'Microsoft', count: 40 },
-        { label: 'Amazon', value: 'Amazon', count: 35 },
-        { label: 'Meta', value: 'Meta', count: 20 },
-        { label: 'Apple', value: 'Apple', count: 15 },
-      ],
-    },
-    {
-      id: 'location',
-      title: 'Location Area',
-      options: [
-        { label: 'Bengaluru Area', value: 'Bengaluru', count: 80 },
-        { label: 'Mumbai Area', value: 'Mumbai', count: 60 },
-        { label: 'Delhi NCR', value: 'Delhi', count: 20 },
-        { label: 'Remote / Global', value: 'Remote', count: 40 },
-      ],
-    },
-    {
-      id: 'skills',
-      title: 'Skills / Expertise',
-      options: [
-        { label: 'React', value: 'React', count: 80 },
-        { label: 'Python', value: 'Python', count: 70 },
-        { label: 'System Design', value: 'System Design', count: 65 },
-        { label: 'Product Strategy', value: 'Product Strategy', count: 40 },
-        { label: 'Machine Learning', value: 'Machine Learning', count: 35 },
-      ],
-    },
-    {
-      id: 'hiring',
-      title: 'Hiring Status',
-      options: [{ label: 'Currently Hiring', value: 'yes', count: 45 }],
-    },
-  ]
-
   const filteredProfiles = useMemo(() => {
-    let result = [...MOCK_PROFILES]
+    // Priority: Backend profiles > Mock profiles
+    let result = backendProfiles.length > 0 ? [...backendProfiles] : [...MOCK_PROFILES]
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
@@ -203,7 +153,7 @@ export default function AlumniDirectory() {
     })
 
     return result
-  }, [filters, sortOption, searchQuery, willingToMentor])
+  }, [filters, sortOption, searchQuery, willingToMentor, backendProfiles])
 
   const paginatedProfiles = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
@@ -223,7 +173,7 @@ export default function AlumniDirectory() {
           setSearchQuery(val)
           setCurrentPage(1)
         }}
-        filterOptions={filterOptions}
+        filterOptions={ALUMNI_FILTER_OPTIONS}
         sortOption={sortOption}
         onSortChange={(val) => {
           setSortOption(val)
@@ -244,121 +194,126 @@ export default function AlumniDirectory() {
         onClearFilters={handleClearAllFilters}
       >
         <div className="pb-16 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 sm:mt-6">
-          {/* Grid View */}
-          {viewMode === 'grid' && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
-                {paginatedProfiles.map((profile) => (
-                  <div
-                    key={profile.id}
-                    className="relative flex flex-col cursor-pointer group rounded-2xl transition-all hover:-translate-y-1 bg-white border border-gray-200 overflow-hidden hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:border-blue-200 flex-1 h-full"
-                    onClick={() => setSelectedProfile(profile)}
-                  >
-                    {/* Banner Image */}
-                    <div className="h-20 w-full bg-gradient-to-r from-blue-100 to-indigo-50"></div>
+          {isLoading ? (
+            <div className="py-20 flex justify-center items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            viewMode === 'grid' && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
+                  {paginatedProfiles.map((profile) => (
+                    <div
+                      key={profile.id}
+                      className="relative flex flex-col cursor-pointer group rounded-2xl transition-all hover:-translate-y-1 bg-white border border-gray-200 overflow-hidden hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:border-blue-200 flex-1 h-full"
+                      onClick={() => setSelectedProfile(profile)}
+                    >
+                      {/* Banner Image */}
+                      <div className="h-20 w-full bg-gradient-to-r from-blue-100 to-indigo-50"></div>
 
-                    {/* Avatar & Content */}
-                    <div className="px-5 pb-5 flex-1 flex flex-col relative pt-0">
-                      <div className="flex justify-center -mt-10 mb-3">
-                        <img
-                          src={
-                            profile.avatar ||
-                            `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=ffffff&color=2563eb`
-                          }
-                          alt={profile.first_name}
-                          className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm bg-white"
-                        />
-                      </div>
+                      {/* Avatar & Content */}
+                      <div className="px-5 pb-5 flex-1 flex flex-col relative pt-0">
+                        <div className="flex justify-center -mt-10 mb-3">
+                          <img
+                            src={
+                              profile.avatar ||
+                              `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=ffffff&color=2563eb`
+                            }
+                            alt={profile.first_name}
+                            className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm bg-white"
+                          />
+                        </div>
 
-                      <div className="flex-1 flex flex-col items-center text-center">
-                        <h3 className="font-bold text-gray-900 text-base leading-tight w-full truncate mb-1">
-                          {profile.first_name} {profile.last_name}
-                        </h3>
-                        <p className="text-[13px] text-gray-600 font-medium w-full line-clamp-2 min-h-[39px]">
-                          {profile.headline || profile.current_position || 'Professional'}
-                        </p>
+                        <div className="flex-1 flex flex-col items-center text-center">
+                          <h3 className="font-bold text-gray-900 text-base leading-tight w-full truncate mb-1">
+                            {profile.first_name} {profile.last_name}
+                          </h3>
+                          <p className="text-[13px] text-gray-600 font-medium w-full line-clamp-2 min-h-[39px]">
+                            {profile.headline || profile.current_position || 'Professional'}
+                          </p>
 
-                        <div className="text-xs text-gray-500 mt-2.5 flex items-center justify-center gap-1 w-full flex-wrap">
-                          {profile.current_company && (
-                            <span className="flex items-center gap-1 font-medium text-gray-700">
-                              <Briefcase className="w-3.5 h-3.5" />
-                              <span className="truncate max-w-[120px]">
-                                {profile.current_company}
+                          <div className="text-xs text-gray-500 mt-2.5 flex items-center justify-center gap-1 w-full flex-wrap">
+                            {profile.current_company && (
+                              <span className="flex items-center gap-1 font-medium text-gray-700">
+                                <Briefcase className="w-3.5 h-3.5" />
+                                <span className="truncate max-w-[120px]">
+                                  {profile.current_company}
+                                </span>
                               </span>
-                            </span>
-                          )}
-                        </div>
-                        {profile.city && (
-                          <div className="text-xs text-gray-500 mt-1.5 flex items-center justify-center gap-1 w-full">
-                            <MapPin className="w-3.5 h-3.5" />
-                            <span className="truncate max-w-[150px]">{profile.city}</span>
+                            )}
                           </div>
-                        )}
+                          {profile.city && (
+                            <div className="text-xs text-gray-500 mt-1.5 flex items-center justify-center gap-1 w-full">
+                              <MapPin className="w-3.5 h-3.5" />
+                              <span className="truncate max-w-[150px]">{profile.city}</span>
+                            </div>
+                          )}
 
-                        <div className="mt-4 flex flex-wrap justify-center gap-1.5 w-full">
-                          {profile.department && (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-gray-50 text-gray-600 border border-gray-100 max-w-full truncate">
-                              {profile.department}
-                            </span>
-                          )}
-                          {profile.graduation_year && (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-100/50 whitespace-nowrap">
-                              Class of '{String(profile.graduation_year).slice(-2)}
-                            </span>
-                          )}
+                          <div className="mt-4 flex flex-wrap justify-center gap-1.5 w-full">
+                            {profile.department && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-gray-50 text-gray-600 border border-gray-100 max-w-full truncate">
+                                {profile.department}
+                              </span>
+                            )}
+                            {profile.graduation_year && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-100/50 whitespace-nowrap">
+                                Class of '{String(profile.graduation_year).slice(-2)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      {/* Action buttons on card */}
+                      <div className="px-5 pb-5 pt-2 flex items-center justify-center gap-2 mt-auto">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            alert(
+                              `Connection request sent to ${profile.first_name} ${profile.last_name}!`
+                            )
+                          }}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          Connect
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedProfile(profile)
+                          }}
+                          className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors"
+                          title="View Profile"
+                        >
+                          Profile
+                        </button>
+                      </div>
                     </div>
-                    {/* Action buttons on card */}
-                    <div className="px-5 pb-5 pt-2 flex items-center justify-center gap-2 mt-auto">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          alert(
-                            `Connection request sent to ${profile.first_name} ${profile.last_name}!`
-                          )
-                        }}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        Connect
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedProfile(profile)
-                        }}
-                        className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors"
-                        title="View Profile"
-                      >
-                        Profile
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {filteredProfiles.length > ITEMS_PER_PAGE && (
-                <div className="flex justify-between items-center mt-8 px-4">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-500 font-medium">
-                    Page {currentPage} of {Math.ceil(filteredProfiles.length / ITEMS_PER_PAGE)}
-                  </span>
-                  <button
-                    disabled={currentPage * ITEMS_PER_PAGE >= filteredProfiles.length}
-                    onClick={() => setCurrentPage((p) => p + 1)}
-                    className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                  >
-                    Next
-                  </button>
+                  ))}
                 </div>
-              )}
-            </>
+                {filteredProfiles.length > ITEMS_PER_PAGE && (
+                  <div className="flex justify-between items-center mt-8 px-4">
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-sm text-gray-500 font-medium">
+                      Page {currentPage} of {Math.ceil(filteredProfiles.length / ITEMS_PER_PAGE)}
+                    </span>
+                    <button
+                      disabled={currentPage * ITEMS_PER_PAGE >= filteredProfiles.length}
+                      onClick={() => setCurrentPage((p) => p + 1)}
+                      className="px-4 py-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
+            )
           )}
 
           {/* List View (Datatable) */}

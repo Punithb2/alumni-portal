@@ -179,7 +179,9 @@ export const MOCK_PROFILES = [
     willing_to_hire: true,
     visibility: 'connections_only',
     user: { id: 5, email: 'michael@alumni.com' },
-    work_experiences: [{ id: 6, title: 'CTO', company: 'FinFlow', start_date: '2019-01', end_date: '' }],
+    work_experiences: [
+      { id: 6, title: 'CTO', company: 'FinFlow', start_date: '2019-01', end_date: '' },
+    ],
     education: [
       {
         id: 5,
@@ -212,7 +214,13 @@ export const MOCK_PROFILES = [
     visibility: 'public',
     user: { id: 6, email: 'priya@alumni.com' },
     work_experiences: [
-      { id: 7, title: 'Research Scientist', company: 'DeepMind', start_date: '2022-09', end_date: '' },
+      {
+        id: 7,
+        title: 'Research Scientist',
+        company: 'DeepMind',
+        start_date: '2022-09',
+        end_date: '',
+      },
     ],
     education: [
       {
@@ -369,7 +377,8 @@ export const MOCK_MENTOR_PROFILES = [
     id: 1,
     user: MOCK_PROFILES[0], // Alex Johnson
     headline: 'Software Engineering & Career Growth',
-    about: 'I have 6 years of experience building scalable applications. I love helping junior engineers level up their system design and React skills.',
+    about:
+      'I have 6 years of experience building scalable applications. I love helping junior engineers level up their system design and React skills.',
     topics: ['System Design', 'Frontend Architecture', 'Career Growth', 'Interview Prep'],
     languages: ['English', 'Spanish'],
     mentoring_type: ['1:1 long-term', 'Flash mentoring'],
@@ -378,7 +387,7 @@ export const MOCK_MENTOR_PROFILES = [
       slots: [
         { day: 'Monday', start: '10:00', end: '12:00' },
         { day: 'Wednesday', start: '14:00', end: '16:00' },
-      ]
+      ],
     },
     rating: 4.9,
     reviews_count: 12,
@@ -390,15 +399,14 @@ export const MOCK_MENTOR_PROFILES = [
     id: 2,
     user: MOCK_PROFILES[3], // Emily Chen
     headline: 'UX Design & Portfolio Reviews',
-    about: 'Passionate about crafting intuitive user experiences. I can help you refine your portfolio and prepare for design interviews.',
+    about:
+      'Passionate about crafting intuitive user experiences. I can help you refine your portfolio and prepare for design interviews.',
     topics: ['UX Research', 'Portfolio Review', 'Design Systems', 'Figma'],
     languages: ['English', 'Mandarin'],
     mentoring_type: ['Flash mentoring'],
     availability: {
       timezone: 'America/Los_Angeles',
-      slots: [
-        { day: 'Friday', start: '09:00', end: '11:00' }
-      ]
+      slots: [{ day: 'Friday', start: '09:00', end: '11:00' }],
     },
     rating: 4.8,
     reviews_count: 8,
@@ -410,22 +418,21 @@ export const MOCK_MENTOR_PROFILES = [
     id: 3,
     user: MOCK_PROFILES[4], // Michael Brown
     headline: 'Tech Leadership & Startups',
-    about: 'Sharing lessons from building companies from scratch. Happy to advise early-stage founders or aspiring engineering managers.',
+    about:
+      'Sharing lessons from building companies from scratch. Happy to advise early-stage founders or aspiring engineering managers.',
     topics: ['Leadership', 'Startups', 'Architecture', 'Fundraising'],
     languages: ['English'],
     mentoring_type: ['1:1 long-term'],
     availability: {
       timezone: 'America/New_York',
-      slots: [
-        { day: 'Tuesday', start: '17:00', end: '18:00' }
-      ]
+      slots: [{ day: 'Tuesday', start: '17:00', end: '18:00' }],
     },
     rating: 5.0,
     reviews_count: 24,
     active_mentees: 2,
     max_mentees: 2,
     status: 'full',
-  }
+  },
 ]
 
 export const MOCK_SESSIONS = [
@@ -457,9 +464,9 @@ export const MOCK_SESSIONS = [
     notes: 'Reviewed the case study on fintech app.',
     feedback: {
       rating: 5,
-      comment: 'Emily gave fantastic and actionable feedback!'
-    }
-  }
+      comment: 'Emily gave fantastic and actionable feedback!',
+    },
+  },
 ]
 
 export const MOCK_MENTOR_GOALS = [
@@ -478,7 +485,7 @@ export const MOCK_MENTOR_GOALS = [
     description: 'Do 3 mock interviews on standard platforms.',
     status: 'pending',
     due_date: '2026-03-30T00:00:00Z',
-  }
+  },
 ]
 
 export const MOCK_MENTORING_REQUESTS = [
@@ -492,7 +499,7 @@ export const MOCK_MENTORING_REQUESTS = [
     requested_at: '2026-03-05T10:00:00Z',
     message: 'Hi Alex, I would love to learn more about System Design from you.',
     mentoring_type: '1:1 long-term',
-    requested_slot: 'Wednesday 14:00 - 16:00'
+    requested_slot: 'Wednesday 14:00 - 16:00',
   },
   {
     id: 2,
@@ -503,19 +510,25 @@ export const MOCK_MENTORING_REQUESTS = [
     status: 'accepted',
     requested_at: '2026-02-15T09:00:00Z',
     message: 'I am preparing for a UX portfolio review and need your guidance.',
-    mentoring_type: 'Flash mentoring'
+    mentoring_type: 'Flash mentoring',
   },
   {
     id: 3,
     mentor_id: 99, // Current user as mentor
     mentee_id: 101,
     mentor: { id: 99, first_name: 'Current', last_name: 'User' },
-    mentee: { id: 101, first_name: 'Jane', last_name: 'Doe', headline: 'Sophomore CS Student', avatar: '' },
+    mentee: {
+      id: 101,
+      first_name: 'Jane',
+      last_name: 'Doe',
+      headline: 'Sophomore CS Student',
+      avatar: '',
+    },
     status: 'pending',
     requested_at: '2026-03-06T10:00:00Z',
     message: 'I saw your profile and I would love some guidance on my resume!',
     mentoring_type: 'Resume Review',
-    requested_slot: 'Friday 09:00 - 10:00'
+    requested_slot: 'Friday 09:00 - 10:00',
   },
   {
     id: 4,
@@ -527,8 +540,9 @@ export const MOCK_MENTORING_REQUESTS = [
     requested_at: '2025-08-10T10:00:00Z',
     message: 'Looking to learn about tech leadership.',
     mentoring_type: '1:1 long-term',
-    summary: 'Completed a successful 6-month mentorship covering architecture and leadership basics.'
-  }
+    summary:
+      'Completed a successful 6-month mentorship covering architecture and leadership basics.',
+  },
 ]
 
 // ─── Messages ─────────────────────────────────────────────────────────────────

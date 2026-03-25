@@ -10,9 +10,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <GamificationProvider>
-        <AuthProvider>
-          {content}
-        </AuthProvider>
+        <AuthProvider>{content}</AuthProvider>
       </GamificationProvider>
     </ErrorBoundary>
   )

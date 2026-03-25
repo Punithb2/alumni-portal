@@ -2,16 +2,33 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { GraduationCap, Briefcase, Award } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
-import { useGamification, BADGES } from '../../contexts/GamificationContext'
+import { useGamification } from '../../hooks/useGamification'
+import { BADGES } from '../../data/gamification'
 import { OnlineHighlightRow, PostComposer, FeedPost } from '../../components/DashboardComponents'
 import { ALUMNI_POSTS } from '../../data/feedStore'
 
 const ALUMNI_USERS = [
-  { title: 'Taylor', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg' },
+  {
+    title: 'Taylor',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/female/20.jpg',
+  },
   { title: 'Alex', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/male/21.jpg' },
-  { title: 'Jamie', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/female/22.jpg' },
-  { title: 'Morgan', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/male/23.jpg' },
-  { title: 'Riley', online: true, src: 'https://xsgames.co/randomusers/assets/avatars/female/24.jpg' },
+  {
+    title: 'Jamie',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/female/22.jpg',
+  },
+  {
+    title: 'Morgan',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/male/23.jpg',
+  },
+  {
+    title: 'Riley',
+    online: true,
+    src: 'https://xsgames.co/randomusers/assets/avatars/female/24.jpg',
+  },
 ]
 
 const PAGE_SIZE = 5
@@ -27,25 +44,28 @@ const AlumniDashboard = () => {
   const visiblePosts = allPosts.slice(0, visibleCount)
   const hasMore = visibleCount < allPosts.length
 
-  const handleNewPost = useCallback(({ text, postType, images }) => {
-    const newPost = {
-      id: Date.now(),
-      author: user?.displayName || user?.name || 'You',
-      role: 'Alumni',
-      avatar: user?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg',
-      verified: false,
-      verifiedType: null,
-      time: 'Just now',
-      type: postType || 'UPDATE',
-      content: text,
-      images: images || [],
-      reactions: {},
-      comments: 0,
-      shares: 0,
-      mockComments: [],
-    }
-    setAllPosts((prev) => [newPost, ...prev])
-  }, [user])
+  const handleNewPost = useCallback(
+    ({ text, postType, images }) => {
+      const newPost = {
+        id: Date.now(),
+        author: user?.displayName || user?.name || 'You',
+        role: 'Alumni',
+        avatar: user?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg',
+        verified: false,
+        verifiedType: null,
+        time: 'Just now',
+        type: postType || 'UPDATE',
+        content: text,
+        images: images || [],
+        reactions: {},
+        comments: 0,
+        shares: 0,
+        mockComments: [],
+      }
+      setAllPosts((prev) => [newPost, ...prev])
+    },
+    [user]
+  )
 
   const loadMore = useCallback(() => {
     if (isLoadingMore || !hasMore) return
@@ -74,7 +94,11 @@ const AlumniDashboard = () => {
       {/* Grid: Main Feed + Right Context (Alumni Context) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1fr_280px] items-start">
         <div className="flex flex-col min-w-0">
-          <PostComposer currentUser={user} placeholder="Share an update or mentor insight..." onPost={handleNewPost} />
+          <PostComposer
+            currentUser={user}
+            placeholder="Share an update or mentor insight..."
+            onPost={handleNewPost}
+          />
           <OnlineHighlightRow title="Active Mentees & Peers" users={ALUMNI_USERS} />
           <div className="space-y-0">
             {visiblePosts.map((post) => (
@@ -118,17 +142,24 @@ const AlumniDashboard = () => {
               </div>
               <div>
                 <p className="text-[13px] font-bold text-slate-800">Total Points</p>
-                <p className="text-[12px] text-slate-500 font-medium">Keep contributing to earn more</p>
+                <p className="text-[12px] text-slate-500 font-medium">
+                  Keep contributing to earn more
+                </p>
               </div>
             </div>
             {earnedBadges?.length > 0 && (
               <div>
-                <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">Unlocked Badges</p>
+                <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Unlocked Badges
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {earnedBadges.map(bId => {
-                    const badge = BADGES[bId] || BADGES.NEWCOMER;
+                  {earnedBadges.map((bId) => {
+                    const badge = BADGES[bId] || BADGES.NEWCOMER
                     return (
-                      <div key={bId} className="group relative flex items-center justify-center w-8 h-8 bg-slate-50 border border-slate-200 rounded-full cursor-help hover:bg-indigo-50">
+                      <div
+                        key={bId}
+                        className="group relative flex items-center justify-center w-8 h-8 bg-slate-50 border border-slate-200 rounded-full cursor-help hover:bg-indigo-50"
+                      >
                         <span>{badge.icon}</span>
                         {/* Tooltip */}
                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-2 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center">

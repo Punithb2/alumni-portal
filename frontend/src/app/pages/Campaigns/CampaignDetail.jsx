@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useCampaigns } from '../../hooks/useCampaigns'
-import { useGamification, BADGES } from '../../contexts/GamificationContext'
+import { useGamification } from '../../hooks/useGamification'
+import { BADGES } from '../../data/gamification'
 import { ProgressBar } from '../../components/campaigns/ProgressBar'
 import {
   ArrowLeft,

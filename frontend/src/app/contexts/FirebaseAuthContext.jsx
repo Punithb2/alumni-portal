@@ -1,4 +1,5 @@
 import { createContext, useEffect, useReducer } from 'react'
+import api from 'app/utils/api'
 
 // ─── Demo user template (no backend needed) ──────────────────────────────────
 const DEMO_USER = {
@@ -24,7 +25,7 @@ const SESSION_KEY = 'alumni_session'
 
 const getStoredSession = () => {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
+    const raw = localStorage.getItem(SESSION_KEY)
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
@@ -32,11 +33,13 @@ const getStoredSession = () => {
 }
 
 const setStoredSession = (user) => {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(user))
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user))
 }
 
 const clearStoredSession = () => {
-  sessionStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -96,25 +99,48 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = async (email, password, role) => {
-    // TODO: Replace with real API call when backend is ready
-    const userRole = role || 'Alumni'
-    const userWithRole = {
-      ...DEMO_USER,
-      role: userRole,
-      is_admin_role: userRole === 'University' || userRole === 'SA',
+  const login = async (email, password) => {
+    try {
+      // 1. Get JWT Tokens
+      const response = await api.post('/auth/token/', { username: email, password })
+      const { access, refresh } = response.data
+
+      localStorage.setItem('accessToken', access)
+      localStorage.setItem('refreshToken', refresh)
+
+      // 2. Fetch User Profile & Role from Backend
+      const profileResponse = await api.get('/auth/me/')
+      const profileData = profileResponse.data
+
+      const user = {
+        id: profileData.user.id,
+        email: profileData.user.email,
+        name: `${profileData.user.first_name} ${profileData.user.last_name}`,
+        role: profileData.role,
+        is_admin_role: profileData.role === 'admin',
+        avatar: profileData.avatar,
+        profile: profileData,
+      }
+
+      setStoredSession(user)
+      dispatch({ type: 'LOGIN', payload: { user } })
+    } catch (error) {
+      console.error('Login failed', error)
+      throw error
     }
-    setStoredSession(userWithRole)
-    dispatch({ type: 'LOGIN', payload: { user: userWithRole } })
   }
 
-  const register = async (/* formData */) => {
-    // TODO: Replace with real API call when backend is ready
-    dispatch({ type: 'REGISTER' })
+  const register = async (formData) => {
+    try {
+      await api.post('/auth/register/', formData)
+      // After registration, user should log in
+    } catch (error) {
+      console.error('Registration failed', error)
+      throw error
+    }
   }
 
   const logout = async () => {
-    // TODO: Replace with real API call when backend is ready
     clearStoredSession()
     dispatch({ type: 'LOGOUT' })
   }

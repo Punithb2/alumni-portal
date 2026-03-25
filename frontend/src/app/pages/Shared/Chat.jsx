@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Search, Send, File, Image, MoreVertical, Phone, Video, Info, ArrowLeft, Smile } from 'lucide-react'
+import {
+  Search,
+  Send,
+  File,
+  Image,
+  MoreVertical,
+  Phone,
+  Video,
+  Info,
+  ArrowLeft,
+  Smile,
+} from 'lucide-react'
 import { dummyProfiles, dummyMessages } from '../../data/dummyData'
 import useAuth from '../../hooks/useAuth'
 import ChatProfileSheet from './ChatProfileSheet'
@@ -28,7 +39,9 @@ const Chat = () => {
 
   // Reset profile sheet when chat changes
   useEffect(() => {
-    setShowProfileSheet(false)
+    setTimeout(() => {
+      setShowProfileSheet(false)
+    }, 0)
   }, [selectedChat])
 
   const handleSendMessage = (e) => {
@@ -52,55 +65,61 @@ const Chat = () => {
   const [sidebarWidth, setSidebarWidth] = useState(340)
   const [isDragging, setIsDragging] = useState(false)
 
-  const startResizing = React.useCallback((mouseDownEvent) => {
-    mouseDownEvent.preventDefault()
-    setIsDragging(true)
-    const startX = mouseDownEvent.clientX
-    const startWidth = sidebarWidth
+  const startResizing = React.useCallback(
+    (mouseDownEvent) => {
+      mouseDownEvent.preventDefault()
+      setIsDragging(true)
+      const startX = mouseDownEvent.clientX
+      const startWidth = sidebarWidth
 
-    const doDrag = (mouseMoveEvent) => {
-      let newWidth = startWidth + mouseMoveEvent.clientX - startX
-      if (newWidth < 280) newWidth = 280     // min width
-      if (newWidth > 500) newWidth = 500     // max width
-      setSidebarWidth(newWidth)
-    }
+      const doDrag = (mouseMoveEvent) => {
+        let newWidth = startWidth + mouseMoveEvent.clientX - startX
+        if (newWidth < 280) newWidth = 280 // min width
+        if (newWidth > 500) newWidth = 500 // max width
+        setSidebarWidth(newWidth)
+      }
 
-    const stopDrag = () => {
-      setIsDragging(false)
-      document.removeEventListener('mousemove', doDrag)
-      document.removeEventListener('mouseup', stopDrag)
-    }
+      const stopDrag = () => {
+        setIsDragging(false)
+        document.removeEventListener('mousemove', doDrag)
+        document.removeEventListener('mouseup', stopDrag)
+      }
 
-    document.addEventListener('mousemove', doDrag)
-    document.addEventListener('mouseup', stopDrag)
-  }, [sidebarWidth])
+      document.addEventListener('mousemove', doDrag)
+      document.addEventListener('mouseup', stopDrag)
+    },
+    [sidebarWidth]
+  )
 
   // Splitter logic for right profile sheet
   const [profileSheetWidth, setProfileSheetWidth] = useState(350)
   const [isProfileDragging, setIsProfileDragging] = useState(false)
 
-  const startProfileResizing = React.useCallback((mouseDownEvent) => {
-    mouseDownEvent.preventDefault()
-    setIsProfileDragging(true)
-    const startX = mouseDownEvent.clientX
-    const startWidth = profileSheetWidth
+  const startProfileResizing = React.useCallback(
+    (mouseDownEvent) => {
+      mouseDownEvent.preventDefault()
+      setIsProfileDragging(true)
+      const startX = mouseDownEvent.clientX
+      const startWidth = profileSheetWidth
 
-    const doDrag = (mouseMoveEvent) => {
-      let newWidth = startWidth - (mouseMoveEvent.clientX - startX)
-      if (newWidth < 280) newWidth = 280     // min width
-      if (newWidth > 500) newWidth = 500     // max width
-      setProfileSheetWidth(newWidth)
-    }
+      const doDrag = (mouseMoveEvent) => {
+        let newWidth = startWidth - (mouseMoveEvent.clientX - startX)
+        if (newWidth < 280) newWidth = 280 // min width
+        if (newWidth > 500) newWidth = 500 // max width
+        setProfileSheetWidth(newWidth)
+      }
 
-    const stopDrag = () => {
-      setIsProfileDragging(false)
-      document.removeEventListener('mousemove', doDrag)
-      document.removeEventListener('mouseup', stopDrag)
-    }
+      const stopDrag = () => {
+        setIsProfileDragging(false)
+        document.removeEventListener('mousemove', doDrag)
+        document.removeEventListener('mouseup', stopDrag)
+      }
 
-    document.addEventListener('mousemove', doDrag)
-    document.addEventListener('mouseup', stopDrag)
-  }, [profileSheetWidth])
+      document.addEventListener('mousemove', doDrag)
+      document.addEventListener('mouseup', stopDrag)
+    },
+    [profileSheetWidth]
+  )
 
   const getFormatTime = (date) =>
     new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }).format(
@@ -117,7 +136,7 @@ const Chat = () => {
 
   return (
     <div
-      className={`flex bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative ${(isDragging || isProfileDragging) ? 'select-none pointer-events-none' : ''}`}
+      className={`flex bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative ${isDragging || isProfileDragging ? 'select-none pointer-events-none' : ''}`}
       style={{ height: 'calc(100vh - 5.5rem)' }}
     >
       {/* Sidebar */}
@@ -133,9 +152,12 @@ const Chat = () => {
               <MoreVertical size={18} />
             </button>
           </div>
-          
+
           <div className="relative mb-4">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Search
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+              size={18}
+            />
             <input
               type="text"
               placeholder="Search conversations..."
@@ -181,9 +203,13 @@ const Chat = () => {
                       </div>
                       <div className="min-w-0 pr-2">
                         <div className="flex justify-between items-center mb-0.5">
-                           <h4 className="text-sm font-semibold text-slate-900 truncate pr-2">{profile.name}</h4>
+                          <h4 className="text-sm font-semibold text-slate-900 truncate pr-2">
+                            {profile.name}
+                          </h4>
                         </div>
-                        <p className={`text-xs truncate ${selectedChat?.id === profile.id ? 'text-indigo-600 font-medium' : 'text-slate-500'}`}>
+                        <p
+                          className={`text-xs truncate ${selectedChat?.id === profile.id ? 'text-indigo-600 font-medium' : 'text-slate-500'}`}
+                        >
                           {profile.role}
                         </p>
                       </div>
@@ -193,20 +219,20 @@ const Chat = () => {
               ))}
             </ul>
           ) : (
-             <div className="p-8 text-center text-slate-400">
-                <p className="text-sm">No conversations found.</p>
-             </div>
+            <div className="p-8 text-center text-slate-400">
+              <p className="text-sm">No conversations found.</p>
+            </div>
           )}
         </div>
       </div>
 
       {/* Splitter */}
-      <div 
+      <div
         className="hidden md:block w-1 bg-slate-100 hover:bg-indigo-400 cursor-col-resize shrink-0 transition-colors z-20 group relative"
         onMouseDown={startResizing}
       >
-         {/* Invisible wider grab area for easier clicking */}
-         <div className="absolute inset-y-0 -left-2 -right-2 bg-transparent"></div>
+        {/* Invisible wider grab area for easier clicking */}
+        <div className="absolute inset-y-0 -left-2 -right-2 bg-transparent"></div>
       </div>
 
       {/* Chat Area */}
@@ -235,15 +261,21 @@ const Chat = () => {
                   )}
                 </div>
                 <div className="min-w-0 cursor-pointer">
-                  <h3 className="text-base font-bold text-slate-900 truncate leading-tight">{selectedChat.name}</h3>
+                  <h3 className="text-base font-bold text-slate-900 truncate leading-tight">
+                    {selectedChat.name}
+                  </h3>
                   <p className="text-xs text-slate-500">
-                    {selectedChat.status === 'online' ? <span className="text-emerald-600 font-medium">Online</span> : 'Offline'}
+                    {selectedChat.status === 'online' ? (
+                      <span className="text-emerald-600 font-medium">Online</span>
+                    ) : (
+                      'Offline'
+                    )}
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-1.5 sm:gap-2 text-slate-500 shrink-0">
-                <button 
+                <button
                   onClick={() => setShowProfileSheet(!showProfileSheet)}
                   className={`p-2 sm:p-2.5 rounded-full transition-colors hidden sm:block ${showProfileSheet ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-slate-100 hover:text-slate-700'}`}
                 >
@@ -257,7 +289,8 @@ const Chat = () => {
               {messages.map((msg, index) => {
                 const isIncoming = !msg.isOwn
                 const senderProps = dummyProfiles.find((p) => p.id === msg.senderId) || currentUser
-                const showAvatar = index === messages.length - 1 || messages[index + 1]?.senderId !== msg.senderId
+                const showAvatar =
+                  index === messages.length - 1 || messages[index + 1]?.senderId !== msg.senderId
 
                 return (
                   <div
@@ -270,40 +303,40 @@ const Chat = () => {
                       {isIncoming && (
                         <div className="w-8 shrink-0 flex flex-col justify-end">
                           {showAvatar && (
-                             <img
-                               src={senderProps.avatar}
-                               alt={senderProps.name}
-                               className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm"
-                             />
+                            <img
+                              src={senderProps.avatar}
+                              alt={senderProps.name}
+                              className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-sm"
+                            />
                           )}
                         </div>
                       )}
-                      
-                      <div className={`flex flex-col min-w-0 ${isIncoming ? 'items-start' : 'items-end'}`}>
+
+                      <div
+                        className={`flex flex-col min-w-0 ${isIncoming ? 'items-start' : 'items-end'}`}
+                      >
                         <div
                           className={`px-4 py-2.5 text-[15px] leading-relaxed shadow-sm ${
-                            isIncoming 
-                            ? 'bg-white text-slate-800 rounded-2xl rounded-bl-sm border border-slate-100' 
-                            : 'bg-indigo-600 text-white rounded-2xl rounded-br-sm'
+                            isIncoming
+                              ? 'bg-white text-slate-800 rounded-2xl rounded-bl-sm border border-slate-100'
+                              : 'bg-indigo-600 text-white rounded-2xl rounded-br-sm'
                           }`}
                         >
                           {msg.text}
                         </div>
-                        <span
-                          className="text-[11px] font-medium text-slate-400 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity px-1"
-                        >
+                        <span className="text-[11px] font-medium text-slate-400 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity px-1">
                           {getFormatTime(msg.timestamp)}
                         </span>
                       </div>
-                      
+
                       {!isIncoming && (
-                         <div className="w-8 shrink-0 flex flex-col justify-end">
-                            <img
-                              src={currentUser.avatar}
-                              alt="You"
-                              className="w-8 h-8 rounded-full object-cover shadow-sm hidden"
-                            />
-                         </div>
+                        <div className="w-8 shrink-0 flex flex-col justify-end">
+                          <img
+                            src={currentUser.avatar}
+                            alt="You"
+                            className="w-8 h-8 rounded-full object-cover shadow-sm hidden"
+                          />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -314,62 +347,74 @@ const Chat = () => {
 
             {/* Input Area */}
             <div className="p-3 sm:p-4 bg-white border-t border-slate-100 shrink-0">
-               <div className="flex items-end gap-2 max-w-5xl mx-auto">
-                 
-                 <div className="flex-1 relative bg-slate-50 rounded-2xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 focus-within:bg-white transition-all overflow-hidden flex pl-3 sm:pl-4">
-                    <textarea
-                      value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1 resize-none bg-transparent py-3 px-3 sm:px-0 min-h-[48px] max-h-32 text-[15px] outline-none leading-relaxed"
-                      rows={1}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          handleSendMessage(e)
-                        }
-                      }}
-                    />
-                 </div>
+              <div className="flex items-end gap-2 max-w-5xl mx-auto">
+                <div className="flex-1 relative bg-slate-50 rounded-2xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 focus-within:bg-white transition-all overflow-hidden flex pl-3 sm:pl-4">
+                  <textarea
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 resize-none bg-transparent py-3 px-3 sm:px-0 min-h-[48px] max-h-32 text-[15px] outline-none leading-relaxed"
+                    rows={1}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSendMessage(e)
+                      }
+                    }}
+                  />
+                </div>
 
-                 <button
-                   onClick={handleSendMessage}
-                   disabled={!messageInput.trim()}
-                   className="p-3 mb-0.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 transition-all shrink-0 shadow-sm"
-                 >
-                   <Send size={20} className="ml-0.5" />
-                 </button>
-               </div>
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!messageInput.trim()}
+                  className="p-3 mb-0.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 transition-all shrink-0 shadow-sm"
+                >
+                  <Send size={20} className="ml-0.5" />
+                </button>
+              </div>
             </div>
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-50/50">
             <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
-               <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
-                  <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"></path>
-               </svg>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="36"
+                height="36"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-indigo-500"
+              >
+                <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"></path>
+              </svg>
             </div>
             <h3 className="text-xl font-bold text-slate-800 mb-2">Your Messages</h3>
-            <p className="text-slate-500 max-w-sm">Select a conversation from the sidebar to view chat history or start a new message.</p>
+            <p className="text-slate-500 max-w-sm">
+              Select a conversation from the sidebar to view chat history or start a new message.
+            </p>
           </div>
         )}
       </div>
 
       {/* Profile Sheet Splitter */}
       {showProfileSheet && selectedChat && (
-        <div 
+        <div
           className="hidden lg:block w-1 bg-slate-100 hover:bg-indigo-400 cursor-col-resize shrink-0 transition-colors z-20 group relative"
           onMouseDown={startProfileResizing}
         >
-           <div className="absolute inset-y-0 -left-2 -right-2 bg-transparent"></div>
+          <div className="absolute inset-y-0 -left-2 -right-2 bg-transparent"></div>
         </div>
       )}
 
       {/* Profile Info Column */}
-      <ChatProfileSheet 
-        isOpen={showProfileSheet} 
-        onClose={() => setShowProfileSheet(false)} 
-        profile={selectedChat} 
+      <ChatProfileSheet
+        isOpen={showProfileSheet}
+        onClose={() => setShowProfileSheet(false)}
+        profile={selectedChat}
         customWidth={profileSheetWidth}
       />
     </div>

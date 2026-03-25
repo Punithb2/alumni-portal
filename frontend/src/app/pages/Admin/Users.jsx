@@ -143,7 +143,7 @@ const AdminUsers = () => {
           }
         })
         setBulkPreview(mapped)
-      } catch (err) {
+      } catch {
         setBulkError('Unable to read this CSV file. Please check the format.')
         setBulkPreview([])
       }

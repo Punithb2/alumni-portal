@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import useAuth from 'app/hooks/useAuth'
 import {
   Eye,
@@ -89,7 +89,6 @@ export const Login = () => {
   const [password, setPassword] = useState('password123')
 
   const { login } = useAuth()
-  const location = useLocation()
 
   const handleRoleChange = (newRole) => {
     setRole(newRole)
@@ -108,14 +107,10 @@ export const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await login(email, password, role)
-      if (role === 'University' || role === 'SA') {
-        navigate('/admin')
-      } else if (location.state && location.state.from) {
-        navigate(location.state.from.pathname)
-      } else {
-        navigate('/dashboard')
-      }
+      await login(email, password)
+      // Destination will be handled by the context or just navigate to dashboard
+      // The context now fetches the user role and we can use it here if needed
+      navigate('/dashboard')
     } catch (e) {
       console.error(e)
     }
@@ -290,16 +285,69 @@ const FormSection = ({ title, icon: Icon, children }) => (
 export const Register = () => {
   const navigate = useNavigate()
   const [role, setRole] = useState('Alumni')
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    phone: '',
+    city: '',
+    college: '',
+    department: '',
+    graduationYear: '',
+    company: '',
+    jobTitle: '',
+    linkedin: '',
+    studentId: '',
+    staffId: '',
+    gender: '',
+  })
 
   const { register } = useAuth()
 
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (formData.password !== formData.confirmPassword) {
+      alert('Passwords do not match!')
+      return
+    }
+
+    // Split full name
+    const [firstName, ...lastNames] = formData.fullName.trim().split(' ')
+    const lastName = lastNames.join(' ') || '-'
+
+    const payload = {
+      username: formData.email, // Using email as username
+      email: formData.email,
+      password: formData.password,
+      first_name: firstName,
+      last_name: lastName,
+      role: role === 'University' ? 'admin' : role.toLowerCase(),
+      phone: formData.phone,
+      city: formData.city,
+      department: formData.department,
+      graduation_year: formData.graduationYear ? parseInt(formData.graduationYear) : null,
+      current_company: formData.company,
+      current_position: formData.jobTitle,
+      linkedin_url: formData.linkedin,
+      student_id:
+        role === 'Student' ? formData.studentId : role === 'University' ? formData.staffId : '',
+      gender: formData.gender,
+      college: formData.college,
+    }
+
     try {
-      await register(/* form data */)
-      navigate('/dashboard')
+      await register(payload)
+      alert('Registration successful! Please login.')
+      navigate('/login')
     } catch (error) {
       console.error(error)
+      alert('Registration failed. Please try again.')
     }
   }
 
@@ -314,11 +362,11 @@ export const Register = () => {
             Create {role.toLowerCase()} account
           </h2>
           <p className="mt-3 text-base text-slate-500 font-medium">
-            {role === 'Alumni' 
+            {role === 'Alumni'
               ? 'Join our global alumni network. Reconnect and grow your career.'
               : role === 'Student'
-              ? 'Join the student community. Connect with alumni and find mentors.'
-              : 'Register as a university representative to manage the portal and community.'}
+                ? 'Join the student community. Connect with alumni and find mentors.'
+                : 'Register as a university representative to manage the portal and community.'}
           </p>
         </div>
 
@@ -336,7 +384,11 @@ export const Register = () => {
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                {r === 'Alumni' ? 'I am an Alumni' : r === 'Student' ? 'I am a Student' : 'I am a University'}
+                {r === 'Alumni'
+                  ? 'I am an Alumni'
+                  : r === 'Student'
+                    ? 'I am a Student'
+                    : 'I am a University'}
               </button>
             ))}
           </div>
@@ -346,24 +398,41 @@ export const Register = () => {
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Section 1: Personal Info */}
             <FormSection title="Personal Information" icon={User}>
-              <AuthInput label="Full Name" icon={User} placeholder="Jane Doe" required />
+              <AuthInput
+                label="Full Name"
+                name="fullName"
+                icon={User}
+                placeholder="Jane Doe"
+                value={formData.fullName}
+                onChange={handleChange}
+                required
+              />
               <AuthInput
                 label="Email Address"
+                name="email"
                 icon={Mail}
                 type="email"
                 placeholder="jane@example.com"
+                value={formData.email}
+                onChange={handleChange}
                 required
               />
               <AuthInput
                 label="Phone Number"
+                name="phone"
                 icon={Phone}
                 type="tel"
                 placeholder="+1 (555) 000-0000"
+                value={formData.phone || ''}
+                onChange={handleChange}
               />
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Gender</label>
                 <select
+                  name="gender"
+                  value={formData.gender || ''}
+                  onChange={handleChange}
                   className="block w-full rounded-md border-0 bg-white py-2 px-3 text-slate-900 shadow-sm
                                         ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600
                                         sm:text-sm sm:leading-6 transition-shadow outline-none"
@@ -382,28 +451,42 @@ export const Register = () => {
               <FormSection title="Academic Information" icon={GraduationCap}>
                 <AuthInput
                   label="College / University"
+                  name="college"
                   icon={Building2}
                   placeholder="State University"
+                  value={formData.college}
+                  onChange={handleChange}
                   required
                 />
                 <AuthInput
                   label="Department / Major"
+                  name="department"
                   icon={GraduationCap}
                   placeholder="Computer Science"
+                  value={formData.department}
+                  onChange={handleChange}
                   required
                 />
-                
+
                 {role === 'Student' ? (
                   <>
                     <AuthInput
                       label="Student ID / Roll No"
+                      name="studentId"
                       icon={Building2}
                       placeholder="CS-2024-001"
+                      value={formData.studentId}
+                      onChange={handleChange}
                       required
                     />
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Current Year</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Current Year
+                      </label>
                       <select
+                        name="currentYear"
+                        value={formData.currentYear}
+                        onChange={handleChange}
                         className="block w-full rounded-md border-0 bg-white py-2 px-3 text-slate-900 shadow-sm
                                               ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600
                                               sm:text-sm sm:leading-6 transition-shadow outline-none"
@@ -419,9 +502,12 @@ export const Register = () => {
                     </div>
                     <AuthInput
                       label="Expected Graduation Year"
+                      name="graduationYear"
                       icon={GraduationCap}
                       type="number"
                       placeholder="2027"
+                      value={formData.graduationYear}
+                      onChange={handleChange}
                       required
                     />
                   </>
@@ -429,14 +515,22 @@ export const Register = () => {
                   <>
                     <AuthInput
                       label="Graduation Year (Batch)"
+                      name="graduationYear"
                       icon={GraduationCap}
                       type="number"
                       placeholder="2023"
+                      value={formData.graduationYear}
+                      onChange={handleChange}
                       required
                     />
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Degree</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Degree
+                      </label>
                       <select
+                        name="degree"
+                        value={formData.degree || ''}
+                        onChange={handleChange}
                         className="block w-full rounded-md border-0 bg-white py-2 px-3 text-slate-900 shadow-sm
                                               ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600
                                               sm:text-sm sm:leading-6 transition-shadow outline-none"
@@ -457,88 +551,137 @@ export const Register = () => {
 
             {/* Section 3: Role Specific Info */}
             {role === 'Alumni' ? (
-                <FormSection title="Professional Information" icon={Briefcase}>
+              <FormSection title="Professional Information" icon={Briefcase}>
+                <AuthInput
+                  label="Current Job Title"
+                  name="jobTitle"
+                  icon={Briefcase}
+                  placeholder="Software Engineer"
+                  value={formData.jobTitle}
+                  onChange={handleChange}
+                />
+                <AuthInput
+                  label="Company Name"
+                  name="company"
+                  icon={Building2}
+                  placeholder="TechCorp"
+                  value={formData.company}
+                  onChange={handleChange}
+                />
+                <AuthInput
+                  label="Industry"
+                  name="industry"
+                  icon={Briefcase}
+                  placeholder="Information Technology"
+                  value={formData.industry}
+                  onChange={handleChange}
+                />
+                <AuthInput
+                  label="LinkedIn Profile"
+                  name="linkedin"
+                  icon={LinkIcon}
+                  type="url"
+                  placeholder="https://linkedin.com/in/username"
+                  value={formData.linkedin}
+                  onChange={handleChange}
+                />
+                <div className="md:col-span-2">
                   <AuthInput
-                    label="Current Job Title"
-                    icon={Briefcase}
-                    placeholder="Software Engineer"
+                    label="Current City"
+                    name="city"
+                    icon={MapPin}
+                    placeholder="San Francisco, CA"
+                    value={formData.city}
+                    onChange={handleChange}
                   />
-                  <AuthInput label="Company Name" icon={Building2} placeholder="TechCorp" />
-                  <AuthInput label="Industry" icon={Briefcase} placeholder="Information Technology" />
-                  <AuthInput
-                    label="LinkedIn Profile"
-                    icon={LinkIcon}
-                    type="url"
-                    placeholder="https://linkedin.com/in/username"
-                  />
-                  <div className="md:col-span-2">
-                    <AuthInput label="Current City" icon={MapPin} placeholder="San Francisco, CA" />
-                  </div>
-                </FormSection>
+                </div>
+              </FormSection>
             ) : role === 'Student' ? (
-                <FormSection title="Student Preferences" icon={User}>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Primary Interests</label>
-                    <select
-                      className="block w-full rounded-md border-0 bg-white py-2 px-3 text-slate-900 shadow-sm
+              <FormSection title="Student Preferences" icon={User}>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Primary Interests
+                  </label>
+                  <select
+                    name="interest"
+                    value={formData.interest}
+                    onChange={handleChange}
+                    className="block w-full rounded-md border-0 bg-white py-2 px-3 text-slate-900 shadow-sm
                                             ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600
                                             sm:text-sm sm:leading-6 transition-shadow outline-none"
-                      required
-                    >
-                      <option value="">Select primary interest...</option>
-                      <option value="mentorship">Looking for Mentorship</option>
-                      <option value="internship">Looking for Internships</option>
-                      <option value="networking">General Networking</option>
-                      <option value="clubs">Joining Clubs & Events</option>
-                    </select>
-                  </div>
-                </FormSection>
+                    required
+                  >
+                    <option value="">Select primary interest...</option>
+                    <option value="mentorship">Looking for Mentorship</option>
+                    <option value="internship">Looking for Internships</option>
+                    <option value="networking">General Networking</option>
+                    <option value="clubs">Joining Clubs & Events</option>
+                  </select>
+                </div>
+              </FormSection>
             ) : (
-                <FormSection title="Administrative Details" icon={Briefcase}>
-                  <AuthInput
-                    label="Staff ID / Employee Number"
-                    icon={Building2}
-                    placeholder="ADM-2024-001"
-                    required
-                  />
-                  <AuthInput
-                    label="Department / Area"
-                    icon={Briefcase}
-                    placeholder="Alumni Relations"
-                    required
-                  />
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Administrative Role</label>
-                    <select
-                      className="block w-full rounded-md border-0 bg-white py-2 px-3 text-slate-900 shadow-sm
+              <FormSection title="Administrative Details" icon={Briefcase}>
+                <AuthInput
+                  label="Staff ID / Employee Number"
+                  name="staffId"
+                  icon={Building2}
+                  placeholder="ADM-2024-001"
+                  value={formData.staffId}
+                  onChange={handleChange}
+                  required
+                />
+                <AuthInput
+                  label="Department / Area"
+                  name="department"
+                  icon={Briefcase}
+                  placeholder="Alumni Relations"
+                  value={formData.department}
+                  onChange={handleChange}
+                  required
+                />
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Administrative Role
+                  </label>
+                  <select
+                    name="adminRole"
+                    value={formData.adminRole}
+                    onChange={handleChange}
+                    className="block w-full rounded-md border-0 bg-white py-2 px-3 text-slate-900 shadow-sm
                                             ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600
                                             sm:text-sm sm:leading-6 transition-shadow outline-none"
-                      required
-                    >
-                      <option value="">Select admin role...</option>
-                      <option value="alumni_coordinator">Alumni Coordinator</option>
-                      <option value="event_management">Event Management</option>
-                      <option value="student_affairs">Student Affairs</option>
-                      <option value="system_admin">System Administrator</option>
-                    </select>
-                  </div>
-                </FormSection>
+                    required
+                  >
+                    <option value="">Select admin role...</option>
+                    <option value="alumni_coordinator">Alumni Coordinator</option>
+                    <option value="event_management">Event Management</option>
+                    <option value="student_affairs">Student Affairs</option>
+                    <option value="system_admin">System Administrator</option>
+                  </select>
+                </div>
+              </FormSection>
             )}
 
             {/* Section 4: Account Info */}
             <FormSection title="Account Security" icon={Lock}>
               <AuthInput
                 label="Password"
+                name="password"
                 icon={Lock}
                 type="password"
                 placeholder="••••••••"
+                value={formData.password}
+                onChange={handleChange}
                 required
               />
               <AuthInput
                 label="Confirm Password"
+                name="confirmPassword"
                 icon={Lock}
                 type="password"
                 placeholder="••••••••"
+                value={formData.confirmPassword}
+                onChange={handleChange}
                 required
               />
             </FormSection>
