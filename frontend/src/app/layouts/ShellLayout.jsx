@@ -75,6 +75,15 @@ const ROLE_META = {
   Student: { label: 'Student', color: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' },
 }
 
+const normalizeNavRole = (role) => {
+  const value = String(role || '').toLowerCase()
+  if (value === 'admin' || value === 'university') return 'University'
+  if (value === 'student') return 'Student'
+  if (value === 'alumni') return 'Alumni'
+  if (value === 'sa' || value === 'super_admin') return 'SA'
+  return 'Alumni'
+}
+
 // ─── Filter helpers ────────────────────────────────────────────────────────────
 const canAccess = (authArr, role) => !authArr || authArr.includes(role)
 
@@ -90,9 +99,9 @@ const filterSections = (role) =>
 const SidebarContent = ({ collapsed, setCollapsed, onClose }) => {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
-  const role = user?.role || 'Alumni'
-  const sections = filterSections(role)
-  const roleMeta = ROLE_META[role] || ROLE_META.Alumni
+  const navRole = normalizeNavRole(user?.role)
+  const sections = filterSections(navRole)
+  const roleMeta = ROLE_META[navRole] || ROLE_META.Alumni
 
   const handleLogout = async () => {
     await logout()
@@ -215,8 +224,8 @@ const TopBar = ({ onMenuClick }) => {
         (n.path !== '/dashboard' && location.pathname.startsWith(n.path))
     )?.name || 'Dashboard'
 
-  const role = user?.role || 'Alumni'
-  const roleMeta = ROLE_META[role] || ROLE_META.Alumni
+  const navRole = normalizeNavRole(user?.role)
+  const roleMeta = ROLE_META[navRole] || ROLE_META.Alumni
 
   const handleLogout = async () => {
     await logout()

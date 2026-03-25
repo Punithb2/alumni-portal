@@ -1,6 +1,9 @@
 # backend/app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from .models import (
     UserProfile, WorkExperience, Education, Job, JobApplication,
     HiringDrive, MentorProfile, MentoringSession, MentorGoal,
@@ -17,6 +20,34 @@ class UserBasicSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name']
+
+
+class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        return super().get_token(user)
+
+    def validate(self, attrs):
+        identifier = attrs.get(self.username_field)
+        password = attrs.get('password')
+        if identifier is None or password is None:
+            raise AuthenticationFailed('No active account found with the given credentials')
+
+        username_value = identifier
+        user = User.objects.filter(email__iexact=identifier).first()
+        if user:
+            username_value = user.username
+
+        auth_kwargs = {self.username_field: username_value, 'password': password}
+        request = self.context.get('request')
+        if request is not None:
+            auth_kwargs['request'] = request
+        self.user = authenticate(**auth_kwargs)
+
+        if self.user is None or not self.user.is_active:
+            raise AuthenticationFailed('No active account found with the given credentials')
+
+        return super().validate({self.username_field: username_value, 'password': password})
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

@@ -37,6 +37,9 @@ export const CampaignCard = ({ campaign, isAdmin = false, onEdit, onDelete, onCa
     campaignType,
   } = campaign
 
+  const safeRaised = Number.isFinite(Number(raised)) ? Number(raised) : 0
+  const safeGoal = Number.isFinite(Number(goal)) ? Number(goal) : 0
+  const safeDonorCount = Number.isFinite(Number(donorCount)) ? Number(donorCount) : 0
   const daysLeft = Math.max(0, Math.ceil((new Date(deadline) - new Date()) / (1000 * 60 * 60 * 24)))
   const isCompleted = status === 'completed'
   const isParticipation = campaignType === 'participation'
@@ -122,16 +125,16 @@ export const CampaignCard = ({ campaign, isAdmin = false, onEdit, onDelete, onCa
 
         <div className="mb-4">
           {isParticipation ? (
-            <ProgressBar current={raised} goal={goal} isParticipation={true} />
+            <ProgressBar current={safeRaised} goal={safeGoal} isParticipation={true} />
           ) : (
-            <ProgressBar current={raised} goal={goal} />
+            <ProgressBar current={safeRaised} goal={safeGoal} />
           )}
         </div>
 
         <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
           <div className="flex items-center gap-1 text-slate-500 text-xs font-semibold">
             <Users size={13} className="text-slate-400" />
-            {donorCount.toLocaleString()} {isParticipation ? 'participants' : 'donors'}
+            {safeDonorCount.toLocaleString()} {isParticipation ? 'participants' : 'donors'}
           </div>
           {!isAdmin ? (
             <button

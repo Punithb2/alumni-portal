@@ -95,10 +95,13 @@ export const CampaignSheet = ({ isOpen, onClose, campaignId }) => {
     campaignType,
   } = campaign
 
+  const safeRaised = Number.isFinite(Number(raised)) ? Number(raised) : 0
+  const safeGoal = Number.isFinite(Number(goal)) ? Number(goal) : 0
+  const safeDonorCount = Number.isFinite(Number(donorCount)) ? Number(donorCount) : 0
   const isCompleted = status === 'completed'
   const isParticipation = campaignType === 'participation'
   const daysLeft = Math.max(0, Math.ceil((new Date(deadline) - new Date()) / (1000 * 60 * 60 * 24)))
-  const pct = Math.min(100, Math.round((raised / goal) * 100))
+  const pct = safeGoal > 0 ? Math.min(100, Math.round((safeRaised / safeGoal) * 100)) : 0
 
   const PRESET_AMOUNTS =
     impactExamples?.length > 0
@@ -185,7 +188,7 @@ export const CampaignSheet = ({ isOpen, onClose, campaignId }) => {
             </h2>
             <div className="flex items-center gap-3 text-xs font-medium text-slate-200">
               <span className="flex items-center gap-1">
-                <Users size={12} /> {donorCount.toLocaleString()}
+                <Users size={12} /> {safeDonorCount.toLocaleString()}
               </span>
               <span>·</span>
               <span className="flex items-center gap-1">
@@ -241,18 +244,18 @@ export const CampaignSheet = ({ isOpen, onClose, campaignId }) => {
           {tab === 'about' && (
             <div className="p-5 space-y-5">
               <div className="bg-white rounded-2xl border border-slate-100">
-                <ProgressBar current={raised} goal={goal} isParticipation={isParticipation} />
+                <ProgressBar current={safeRaised} goal={safeGoal} isParticipation={isParticipation} />
                 <div className="flex justify-between text-xs text-slate-400 mt-1 font-medium px-1">
                   <span>
                     {isParticipation
-                      ? `${raised.toLocaleString()} joined`
-                      : `₹${raised.toLocaleString()} raised`}
+                      ? `${safeRaised.toLocaleString()} joined`
+                      : `₹${safeRaised.toLocaleString()} raised`}
                   </span>
                   <span>
                     of{' '}
                     {isParticipation
-                      ? `${goal.toLocaleString()} spots`
-                      : `₹${goal.toLocaleString()}`}
+                      ? `${safeGoal.toLocaleString()} spots`
+                      : `₹${safeGoal.toLocaleString()}`}
                   </span>
                 </div>
               </div>
@@ -497,7 +500,9 @@ export const CampaignSheet = ({ isOpen, onClose, campaignId }) => {
                           <p className="text-xs text-slate-400">{donor.date}</p>
                         </div>
                         <p className="text-sm font-extrabold text-violet-700">
-                          {isParticipation ? donor.amount : `₹${donor.amount.toLocaleString()}`}
+                          {isParticipation
+                            ? Number(donor.amount) || 0
+                            : `₹${(Number(donor.amount) || 0).toLocaleString()}`}
                         </p>
                       </div>
                     )

@@ -16,11 +16,16 @@ from .serializers import (
     CampaignSerializer, DonationSerializer,
     ClubSerializer, ClubMembershipSerializer, ClubJoinRequestSerializer,
     ClubPostSerializer, ClubMessageSerializer,
+    EmailOrUsernameTokenObtainPairSerializer,
 )
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 # ==========================================
 # 1. AUTHENTICATION & REGISTRATION
 # ==========================================
+
+class EmailOrUsernameTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmailOrUsernameTokenObtainPairSerializer
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()

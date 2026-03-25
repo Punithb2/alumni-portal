@@ -21,8 +21,8 @@ export default function CampaignList() {
 
   const totalRaised = campaigns
     .filter((c) => c.campaignType !== 'participation')
-    .reduce((sum, c) => sum + c.raised, 0)
-  const totalDonors = campaigns.reduce((sum, c) => sum + c.donorCount, 0)
+    .reduce((sum, c) => sum + (Number(c.raised) || 0), 0)
+  const totalDonors = campaigns.reduce((sum, c) => sum + (Number(c.donorCount) || 0), 0)
 
   return (
     <div className="max-w-7xl mx-auto pb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">

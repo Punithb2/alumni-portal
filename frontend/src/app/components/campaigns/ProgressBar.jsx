@@ -1,17 +1,19 @@
 import React from 'react'
 
 export const ProgressBar = ({ current, goal, className = '', isParticipation = false }) => {
-  const percentage = Math.min(100, Math.round((current / goal) * 100)) || 0
+  const safeCurrent = Number.isFinite(Number(current)) ? Number(current) : 0
+  const safeGoal = Number.isFinite(Number(goal)) ? Number(goal) : 0
+  const percentage = safeGoal > 0 ? Math.min(100, Math.round((safeCurrent / safeGoal) * 100)) : 0
 
   return (
     <div className={`w-full ${className}`}>
       <div className="flex justify-between items-end text-sm mb-1.5 font-medium">
         <span className="text-violet-700 font-bold text-base leading-none">{percentage}%</span>
-        {goal > 0 && (
+        {safeGoal > 0 && (
           <span className="text-slate-500 text-xs leading-none">
             {isParticipation
-              ? `${current.toLocaleString()} / ${goal.toLocaleString()}`
-              : `₹${current.toLocaleString()} / ₹${goal.toLocaleString()}`}
+              ? `${safeCurrent.toLocaleString()} / ${safeGoal.toLocaleString()}`
+              : `₹${safeCurrent.toLocaleString()} / ₹${safeGoal.toLocaleString()}`}
           </span>
         )}
       </div>

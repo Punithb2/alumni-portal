@@ -2,6 +2,34 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from 'app/utils/api'
 
+const toNumber = (value, fallback = 0) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+const normalizeCampaign = (campaign = {}) => {
+  const raised = toNumber(campaign.raised, 0)
+  const goal = toNumber(campaign.goal, 0)
+  const donorCount = toNumber(campaign.donor_count ?? campaign.donorCount, 0)
+
+  return {
+    ...campaign,
+    // Canonical frontend fields (camelCase)
+    campaignType: campaign.campaign_type ?? campaign.campaignType ?? 'donation',
+    donorCount,
+    imageUrl: campaign.image_url ?? campaign.imageUrl ?? '',
+    longStory: campaign.long_story ?? campaign.longStory ?? '',
+    impactExamples: campaign.impact_examples ?? campaign.impactExamples ?? [],
+    recentDonors: campaign.recent_donors ?? campaign.recentDonors ?? [],
+    allowAnonymous: campaign.allow_anonymous ?? campaign.allowAnonymous ?? false,
+    allowRecurring: campaign.allow_recurring ?? campaign.allowRecurring ?? false,
+    showDonorList: campaign.show_donor_list ?? campaign.showDonorList ?? true,
+    targetDepartment: campaign.target_department ?? campaign.targetDepartment ?? null,
+    raised,
+    goal,
+  }
+}
+
 export const useCampaigns = () => {
   const [campaigns, setCampaigns] = useState([])
   const [myDonations, setMyDonations] = useState([])
@@ -16,7 +44,8 @@ export const useCampaigns = () => {
         api.get('/campaigns/'),
         api.get('/donations/'),
       ])
-      setCampaigns(campaignsRes.data.results ?? campaignsRes.data)
+      const rawCampaigns = campaignsRes.data.results ?? campaignsRes.data
+      setCampaigns((Array.isArray(rawCampaigns) ? rawCampaigns : []).map(normalizeCampaign))
       setMyDonations(donationsRes.data.results ?? donationsRes.data)
     } catch (err) {
       console.error('Failed to load campaigns:', err)
@@ -32,14 +61,16 @@ export const useCampaigns = () => {
 
   const addCampaign = async (data) => {
     const res = await api.post('/campaigns/', data)
-    setCampaigns((prev) => [res.data, ...prev])
-    return res.data
+    const normalized = normalizeCampaign(res.data)
+    setCampaigns((prev) => [normalized, ...prev])
+    return normalized
   }
 
   const updateCampaign = async (id, data) => {
     const res = await api.patch(`/campaigns/${id}/`, data)
-    setCampaigns((prev) => prev.map((c) => (c.id === id ? res.data : c)))
-    return res.data
+    const normalized = normalizeCampaign(res.data)
+    setCampaigns((prev) => prev.map((c) => (c.id === id ? normalized : c)))
+    return normalized
   }
 
   const deleteCampaign = async (id) => {
@@ -57,7 +88,8 @@ export const useCampaigns = () => {
     })
     // Refresh campaigns list to get updated raised/donor_count
     const updatedCampaign = await api.get(`/campaigns/${id}/`)
-    setCampaigns((prev) => prev.map((c) => (c.id === id ? updatedCampaign.data : c)))
+    const normalized = normalizeCampaign(updatedCampaign.data)
+    setCampaigns((prev) => prev.map((c) => (c.id === id ? normalized : c)))
     setMyDonations((prev) => [res.data, ...prev])
     return res.data
   }
@@ -65,7 +97,8 @@ export const useCampaigns = () => {
   const participateInCampaign = async (id) => {
     const res = await api.post(`/campaigns/${id}/participate/`)
     const updatedCampaign = await api.get(`/campaigns/${id}/`)
-    setCampaigns((prev) => prev.map((c) => (c.id === id ? updatedCampaign.data : c)))
+    const normalized = normalizeCampaign(updatedCampaign.data)
+    setCampaigns((prev) => prev.map((c) => (c.id === id ? normalized : c)))
     setMyDonations((prev) => [res.data, ...prev])
     return res.data
   }

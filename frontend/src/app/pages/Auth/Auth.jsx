@@ -85,34 +85,43 @@ const RoleSelector = ({ value, onChange }) => {
 export const Login = () => {
   const navigate = useNavigate()
   const [role, setRole] = useState('Alumni')
-  const [email, setEmail] = useState('alumni@example.com')
+  const [email, setEmail] = useState('alex@alumni.com')
   const [password, setPassword] = useState('password123')
+  const [loginError, setLoginError] = useState('')
 
   const { login } = useAuth()
 
   const handleRoleChange = (newRole) => {
     setRole(newRole)
+    setLoginError('')
     if (newRole === 'Alumni') {
-      setEmail('alumni@example.com')
+      setEmail('alex@alumni.com')
       setPassword('password123')
     } else if (newRole === 'Student') {
-      setEmail('student@example.com')
+      setEmail('student1@uni.com')
       setPassword('password123')
     } else if (newRole === 'University') {
-      setEmail('admin@example.com')
-      setPassword('password123')
+      setEmail('admin@alumni.com')
+      setPassword('admin123')
     }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setLoginError('')
     try {
       await login(email, password)
       // Destination will be handled by the context or just navigate to dashboard
       // The context now fetches the user role and we can use it here if needed
       navigate('/dashboard')
-    } catch (e) {
-      console.error(e)
+    } catch (error) {
+      console.error(error)
+      const statusCode = error?.response?.status
+      if (statusCode === 401) {
+        setLoginError('Invalid credentials. Use a valid seeded account or register first.')
+      } else {
+        setLoginError('Login failed. Please check backend server and try again.')
+      }
     }
   }
 
@@ -190,6 +199,12 @@ export const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+
+              {loginError && (
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {loginError}
+                </div>
+              )}
 
               <AuthInput
                 label="Password"
