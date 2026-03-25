@@ -328,6 +328,7 @@ export const Register = () => {
 
   const { register } = useAuth()
   const [registerError, setRegisterError] = useState('')
+  const [registerSuccess, setRegisterSuccess] = useState('')
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -337,6 +338,7 @@ export const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setRegisterError('')
+    setRegisterSuccess('')
     if (formData.password !== formData.confirmPassword) {
       setRegisterError('Passwords do not match.')
       return
@@ -371,8 +373,8 @@ export const Register = () => {
 
     try {
       await register(payload)
-      alert('Registration successful! Please login.')
-      navigate('/login')
+      setRegisterSuccess('Registration successful! Redirecting to sign in...')
+      setTimeout(() => navigate('/login'), 900)
     } catch (error) {
       console.error(error)
       const message = extractApiErrorMessage(error?.response?.data)
@@ -429,6 +431,11 @@ export const Register = () => {
 
         <div className="bg-white shadow-xl shadow-slate-200/50 rounded-2xl border border-slate-100 p-8 sm:p-10">
           <form onSubmit={handleSubmit} className="space-y-8">
+            {registerSuccess && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {registerSuccess}
+              </div>
+            )}
             {registerError && (
               <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {registerError}

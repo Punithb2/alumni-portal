@@ -46,6 +46,7 @@ export default function StudentDirectory() {
   const ITEMS_PER_PAGE = 24
   const [backendProfiles, setBackendProfiles] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [actionMessage, setActionMessage] = useState('')
 
   useEffect(() => {
     api
@@ -188,6 +189,11 @@ export default function StudentDirectory() {
         onViewModeChange={setViewMode}
       >
         <div className="w-full mt-4 sm:mt-6">
+          {actionMessage && (
+            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              {actionMessage}
+            </div>
+          )}
           {isLoading ? (
             <div className="py-20 flex justify-center items-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -297,7 +303,9 @@ export default function StudentDirectory() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                alert(`Message mock feature triggered for ${p.first_name}!`)
+                                setActionMessage(
+                                  `Messaging for ${p.first_name} is not enabled yet. This action is currently in preview mode.`
+                                )
                               }}
                               className="p-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
                               title="Message"

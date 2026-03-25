@@ -231,6 +231,7 @@ const Settings = () => {
   const [activeSection, setActiveSection] = useState(navItems[0].id)
   const [savedSection, setSavedSection] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const [avatarUrl, setAvatarUrl] = useState(
     currentUser.avatar || getAvatarDataUrl(currentUser.name || 'Alumni User')
   )
@@ -346,9 +347,10 @@ const Settings = () => {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 1024 * 1024) {
-      alert('File size must be under 1 MB.')
+      setUploadError('File size must be under 1 MB.')
       return
     }
+    setUploadError('')
     setAvatarUrl(URL.createObjectURL(file))
   }
 
@@ -361,6 +363,9 @@ const Settings = () => {
         className="h-16 w-16 rounded-full object-cover ring-2 ring-white shadow"
       />
       <div>
+        {uploadError && (
+          <p className="mb-2 text-xs font-medium text-rose-600">{uploadError}</p>
+        )}
         <input
           ref={fileInputRef}
           type="file"

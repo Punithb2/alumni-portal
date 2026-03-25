@@ -32,6 +32,7 @@ import { getAvatarDataUrl } from '../../utils/avatar'
 
 export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'Alumni' }) {
   const [activeTab, setActiveTab] = useState('Posts')
+  const [actionMessage, setActionMessage] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
       onClose()
       navigate(`/chat`) // Assume /chat takes care of the latest user via state or we can pass state if required
     } else {
-      alert(`${profile.first_name} has not accepted your connection request yet.`)
+      setActionMessage(`${profile.first_name} has not accepted your connection request yet.`)
     }
   }
 
@@ -120,8 +121,8 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
               <div className="flex items-center gap-2 pb-1 z-10">
                 <button
                   onClick={() =>
-                    alert(
-                      `${viewerRole === 'Student' ? 'Mentorship request' : 'Connection request'} sent to ${profile.first_name}!`
+                    setActionMessage(
+                      `${viewerRole === 'Student' ? 'Mentorship request' : 'Connection request'} sent to ${profile.first_name}.`
                     )
                   }
                   className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-600 text-white font-semibold text-[13px] sm:text-[14px] rounded-full hover:bg-indigo-700 transition-colors shadow-sm focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
@@ -139,6 +140,11 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
                 </button>
               </div>
             </div>
+            {actionMessage && (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                {actionMessage}
+              </div>
+            )}
 
             <div className="mb-5">
               <h2 className="text-[20px] sm:text-[22px] font-bold text-slate-900 leading-tight flex items-center gap-1.5">

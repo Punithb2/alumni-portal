@@ -39,6 +39,7 @@ export default function AlumniDirectory() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [actionMessage, setActionMessage] = useState('')
   const ITEMS_PER_PAGE = 24
 
   // Fetch Profiles from Backend
@@ -189,6 +190,11 @@ export default function AlumniDirectory() {
         onClearFilters={handleClearAllFilters}
       >
         <div className="pb-16 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 sm:mt-6">
+          {actionMessage && (
+            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              {actionMessage}
+            </div>
+          )}
           {isLoading ? (
             <div className="py-20 flex justify-center items-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -263,8 +269,8 @@ export default function AlumniDirectory() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            alert(
-                              `Connection request sent to ${profile.first_name} ${profile.last_name}!`
+                            setActionMessage(
+                              `Connection request sent to ${profile.first_name} ${profile.last_name}.`
                             )
                           }}
                           className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
@@ -390,8 +396,8 @@ export default function AlumniDirectory() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                alert(
-                                  `Connection request sent to ${profile.first_name} ${profile.last_name}!`
+                                setActionMessage(
+                                  `Connection request sent to ${profile.first_name} ${profile.last_name}.`
                                 )
                               }}
                               className="px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm font-medium flex items-center gap-1.5"

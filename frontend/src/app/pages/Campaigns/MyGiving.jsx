@@ -25,6 +25,7 @@ const STATUS_COLORS = {
 export default function MyGiving() {
   const { myDonations, cancelRecurring } = useCampaigns()
   const [yearFilter, setYearFilter] = useState('all')
+  const [exportError, setExportError] = useState('')
 
   const years = useMemo(() => {
     const yr = [...new Set(myDonations.map((d) => new Date(d.date).getFullYear()))].sort(
@@ -59,9 +60,10 @@ export default function MyGiving() {
 
   const handleExport = () => {
     if (filtered.length === 0) {
-      alert('No donations to export for this selection.')
+      setExportError('No donations to export for this selection.')
       return
     }
+    setExportError('')
 
     // CSV Header
     const headers = ['Date', 'Campaign', 'Amount', 'Status', 'Frequency', 'Anonymous'].join(',')
@@ -118,6 +120,11 @@ export default function MyGiving() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left/Main Content Column */}
         <div className="lg:col-span-8 space-y-8">
+          {exportError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              {exportError}
+            </div>
+          )}
           {/* Summary Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm">
