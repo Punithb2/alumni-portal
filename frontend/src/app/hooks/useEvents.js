@@ -1,78 +1,81 @@
-import { useState, useEffect } from 'react'
-import { dummyEvents } from '../data/dummyData'
-
-const getInitialEvents = () => {
-  const enhancedDefaults = dummyEvents.map((event) => ({
-    ...event,
-    capacity: 200, // default capacity
-    price: event.id === 'e2' ? 15 : 0, // default price for demo
-    registeredUsers: [], // Array of user objects or IDs representing RSVPs
-  }))
-
-  const saved = localStorage.getItem('mock_events')
-  if (saved && saved.length > 20) {
-    try {
-      return JSON.parse(saved)
-    } catch (e) {
-      console.warn('Could not parse saved mock_events', e)
-    }
-  }
-
-  localStorage.setItem('mock_events', JSON.stringify(enhancedDefaults))
-  return enhancedDefaults
-}
+// src/app/hooks/useEvents.js
+import { useState, useEffect, useCallback } from 'react'
+import api from 'app/utils/api'
 
 export const useEvents = () => {
-  const [events, setEvents] = useState(getInitialEvents)
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const fetchEvents = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await api.get('/events/')
+      // Handle paginated response or plain array
+      const data = res.data.results ?? res.data
+      setEvents(data)
+    } catch (err) {
+      console.error('Failed to load events:', err)
+      setError('Failed to load events.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    localStorage.setItem('mock_events', JSON.stringify(events))
-  }, [events])
+    fetchEvents()
+  }, [fetchEvents])
 
-  const addEvent = (data) => {
-    const newEvent = {
-      ...data,
-      id: `e_${Date.now()}`,
-      attendees: 0,
-      registeredUsers: [],
-    }
-    setEvents((prev) => [newEvent, ...prev])
-    return newEvent
+  const addEvent = async (data) => {
+    const res = await api.post('/events/', data)
+    setEvents((prev) => [res.data, ...prev])
+    return res.data
   }
 
-  const updateEvent = (id, data) => {
-    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...data } : e)))
+  const updateEvent = async (id, data) => {
+    const res = await api.patch(`/events/${id}/`, data)
+    setEvents((prev) => prev.map((e) => (e.id === id ? res.data : e)))
+    return res.data
   }
 
-  const deleteEvent = (id) => {
+  const deleteEvent = async (id) => {
+    await api.delete(`/events/${id}/`)
     setEvents((prev) => prev.filter((e) => e.id !== id))
   }
 
-  const registerUser = (eventId, user) => {
+  const registerUser = async (eventId) => {
+    const res = await api.post(`/events/${eventId}/rsvp/`)
     setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id === eventId) {
-          // Prevent duplicate registration in this mock scenario
-          if (e.registeredUsers.some((u) => u.id === user.id)) {
-            return e
-          }
-          return {
-            ...e,
-            attendees: e.attendees + 1,
-            registeredUsers: [...e.registeredUsers, user],
-          }
-        }
-        return e
-      })
+      prev.map((e) =>
+        e.id === eventId
+          ? { ...e, attendees_count: res.data.attendees_count, is_registered: true }
+          : e
+      )
+    )
+  }
+
+  const cancelRsvp = async (eventId) => {
+    const res = await api.post(`/events/${eventId}/cancel_rsvp/`)
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === eventId
+          ? { ...e, attendees_count: res.data.attendees_count, is_registered: false }
+          : e
+      )
     )
   }
 
   return {
     events,
+    loading,
+    error,
     addEvent,
     updateEvent,
     deleteEvent,
     registerUser,
-    getEventById: (id) => events.find((e) => e.id === id),
+    cancelRsvp,
+    refetch: fetchEvents,
+    getEventById: (id) => events.find((e) => String(e.id) === String(id)),
   }
 }

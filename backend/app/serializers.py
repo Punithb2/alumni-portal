@@ -5,7 +5,8 @@ from .models import (
     UserProfile, WorkExperience, Education, Job, JobApplication,
     HiringDrive, MentorProfile, MentoringSession, MentorGoal,
     MentoringRequest, Post, Comment, ForumCategory, ForumTopic,
-    ForumReply, Conversation, Message, Event, NewsArticle, Notification
+    ForumReply, Conversation, Message, Event, NewsArticle, Notification,
+    Campaign, Donation, Club, ClubMembership, ClubJoinRequest, ClubPost, ClubMessage
 )
 
 # ==========================================
@@ -163,13 +164,21 @@ class MentoringRequestSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = '__all__'
 
+    def get_author_avatar(self, obj):
+        try:
+            return obj.author.profile.avatar
+        except Exception:
+            return ''
+
 class PostSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_avatar = serializers.SerializerMethodField()
     comments = CommentSerializer(many=True, read_only=True)
     comment_count = serializers.SerializerMethodField()
 
@@ -180,14 +189,40 @@ class PostSerializer(serializers.ModelSerializer):
     def get_comment_count(self, obj):
         return obj.comments.count()
 
+    def get_author_avatar(self, obj):
+        try:
+            return obj.author.profile.avatar
+        except Exception:
+            return ''
+
 # ==========================================
 # 5. FORUMS, EVENTS, & NOTIFICATIONS
 # ==========================================
+
+class ForumCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ForumCategory
+        fields = '__all__'
+
+class ForumReplySerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ForumReply
+        fields = '__all__'
+
+    def get_author_avatar(self, obj):
+        try:
+            return obj.author.profile.avatar
+        except Exception:
+            return ''
 
 class ForumTopicSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     reply_count = serializers.SerializerMethodField()
+    replies = ForumReplySerializer(many=True, read_only=True)
 
     class Meta:
         model = ForumTopic
@@ -197,11 +232,220 @@ class ForumTopicSerializer(serializers.ModelSerializer):
         return obj.replies.count()
 
 class EventSerializer(serializers.ModelSerializer):
+    attendees_count = serializers.SerializerMethodField()
+    is_registered = serializers.SerializerMethodField()
+
     class Meta:
         model = Event
         fields = '__all__'
+
+    def get_attendees_count(self, obj):
+        return obj.attendees.count()
+
+    def get_is_registered(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.attendees.filter(id=request.user.id).exists()
+        return False
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
+
+class NewsArticleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NewsArticle
+        fields = '__all__'
+
+# ==========================================
+# 6. MESSAGING
+# ==========================================
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.CharField(source='sender.get_full_name', read_only=True)
+    sender_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Message
+        fields = '__all__'
+
+    def get_sender_avatar(self, obj):
+        try:
+            return obj.sender.profile.avatar
+        except Exception:
+            return ''
+
+class ConversationSerializer(serializers.ModelSerializer):
+    participants = UserBasicSerializer(many=True, read_only=True)
+    last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conversation
+        fields = '__all__'
+
+    def get_last_message(self, obj):
+        msg = obj.messages.order_by('-sent_at').first()
+        if msg:
+            return {'content': msg.content, 'sent_at': msg.sent_at}
+        return None
+
+    def get_unread_count(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.messages.filter(is_read=False).exclude(sender=request.user).count()
+        return 0
+
+# ==========================================
+# 7. CAMPAIGNS & DONATIONS
+# ==========================================
+
+class DonationSerializer(serializers.ModelSerializer):
+    campaign_title = serializers.CharField(source='campaign.title', read_only=True)
+    donor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Donation
+        fields = '__all__'
+        read_only_fields = ['donor']
+
+    def get_donor_name(self, obj):
+        if obj.anonymous:
+            return 'Anonymous'
+        if obj.donor:
+            return obj.donor.get_full_name()
+        return 'Anonymous'
+
+class CampaignSerializer(serializers.ModelSerializer):
+    recent_donors = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Campaign
+        fields = '__all__'
+        read_only_fields = ['raised', 'donor_count', 'created_by']
+
+    def get_recent_donors(self, obj):
+        donations = obj.donations.filter(status='completed').order_by('-created_at')[:10]
+        return [
+            {
+                'name': 'Anonymous' if d.anonymous else (d.donor.get_full_name() if d.donor else 'Anonymous'),
+                'amount': float(d.amount) if obj.campaign_type == 'donation' else 'Participating',
+                'date': d.created_at.date().isoformat(),
+                'anonymous': d.anonymous,
+            }
+            for d in donations
+        ]
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name()
+        return 'Admin'
+
+# ==========================================
+# 8. CLUBS
+# ==========================================
+
+class ClubMembershipSerializer(serializers.ModelSerializer):
+    user = UserBasicSerializer(read_only=True)
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClubMembership
+        fields = '__all__'
+
+    def get_avatar(self, obj):
+        try:
+            return obj.user.profile.avatar
+        except Exception:
+            return ''
+
+class ClubJoinRequestSerializer(serializers.ModelSerializer):
+    user = UserBasicSerializer(read_only=True)
+
+    class Meta:
+        model = ClubJoinRequest
+        fields = '__all__'
+
+class ClubPostCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = '__all__'
+
+class ClubPostSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClubPost
+        fields = '__all__'
+        read_only_fields = ['author', 'likes']
+
+    def get_author_avatar(self, obj):
+        try:
+            return obj.author.profile.avatar
+        except Exception:
+            return ''
+
+class ClubMessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.CharField(source='sender.get_full_name', read_only=True)
+    sender_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClubMessage
+        fields = '__all__'
+        read_only_fields = ['sender']
+
+    def get_sender_avatar(self, obj):
+        try:
+            return obj.sender.profile.avatar
+        except Exception:
+            return ''
+
+class ClubSerializer(serializers.ModelSerializer):
+    is_member = serializers.SerializerMethodField()
+    is_pending = serializers.SerializerMethodField()
+    member_role = serializers.SerializerMethodField()
+    member_avatars = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Club
+        fields = '__all__'
+        read_only_fields = ['members_count', 'created_by', 'created_at']
+
+    def get_is_member(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.memberships.filter(user=request.user).exists()
+        return False
+
+    def get_is_pending(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.join_requests.filter(user=request.user, status='pending').exists()
+        return False
+
+    def get_member_role(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            membership = obj.memberships.filter(user=request.user).first()
+            return membership.role if membership else None
+        return None
+
+    def get_member_avatars(self, obj):
+        avatars = []
+        for m in obj.memberships.all()[:5]:
+            try:
+                avatars.append(m.user.profile.avatar or '')
+            except Exception:
+                avatars.append('')
+        return avatars
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name()
+        return ''

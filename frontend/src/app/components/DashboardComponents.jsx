@@ -18,7 +18,7 @@ import {
   BellOff,
   AlertCircle,
 } from 'lucide-react'
-import { POST_TYPES, REACTIONS } from '../data/feedStore'
+import { POST_TYPES, REACTIONS } from '../constants/feed'
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 const totalReactions = (r = {}) => Object.values(r).reduce((a, b) => a + b, 0)

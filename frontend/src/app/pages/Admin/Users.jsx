@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Trash2, Power, Eye, UserCog, X, UserPlus, CheckCircle } from 'lucide-react'
-import { dummyProfiles } from '../../data/dummyData'
+import { Search, Trash2, Power, Eye, UserCog, UserPlus, CheckCircle } from 'lucide-react'
 import { Table, Modal } from '../../components/GenericComponents'
+import { useUsers } from '../../hooks/useUsers'
 
 const AdminUsers = () => {
   const navigate = useNavigate()
-  const [users, setUsers] = useState(dummyProfiles.map((u) => ({ ...u, status: 'Active' })))
+  const { users, changeRole, deleteUser } = useUsers()
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('All')
   const [filterStatus, setFilterStatus] = useState('All')
@@ -22,13 +22,15 @@ const AdminUsers = () => {
   const [bulkDefaultRole, setBulkDefaultRole] = useState('Alumni')
   const [bulkPreview, setBulkPreview] = useState([])
   const [bulkError, setBulkError] = useState('')
+  const [userStatuses, setUserStatuses] = useState({})
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(search.toLowerCase()) ||
       user.role.toLowerCase().includes(search.toLowerCase())
     const matchesRole = filterRole === 'All' || user.role === filterRole
-    const matchesStatus = filterStatus === 'All' || user.status === filterStatus
+    const status = userStatuses[user.id] || user.status
+    const matchesStatus = filterStatus === 'All' || status === filterStatus
     return matchesSearch && matchesRole && matchesStatus
   })
 
@@ -38,40 +40,37 @@ const AdminUsers = () => {
     setIsModalOpen(true)
   }
 
-  const handleRoleChange = () => {
+  const handleRoleChange = async () => {
     if (selectedUser) {
-      setUsers(users.map((u) => (u.id === selectedUser.id ? { ...u, role: newRole } : u)))
-      setIsModalOpen(false)
-      setSelectedUser(null)
+      try {
+        await changeRole(selectedUser.profileId, newRole)
+        setIsModalOpen(false)
+        setSelectedUser(null)
+      } catch (err) {
+        console.error('Failed to change role:', err)
+      }
     }
   }
 
   const toggleStatus = (userId) => {
-    setUsers(
-      users.map((u) =>
-        u.id === userId ? { ...u, status: u.status === 'Active' ? 'Suspended' : 'Active' } : u
-      )
-    )
+    setUserStatuses((prev) => ({
+      ...prev,
+      [userId]: (prev[userId] || 'Active') === 'Active' ? 'Suspended' : 'Active',
+    }))
   }
 
-  const handleDelete = (userId) => {
-    setUsers(users.filter((u) => u.id !== userId))
-    setDeleteConfirm(null)
+  const handleDelete = async (profileId) => {
+    try {
+      await deleteUser(profileId)
+      setDeleteConfirm(null)
+    } catch (err) {
+      console.error('Failed to delete user:', err)
+    }
   }
 
   const handleInvite = (e) => {
     e.preventDefault()
-    const newUser = {
-      id: String(Date.now()),
-      name: inviteForm.name,
-      role: inviteForm.role,
-      company: 'Invited',
-      location: '—',
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(inviteForm.name)}&background=e0e7ff&color=4f46e5`,
-      status: 'Pending',
-      graduationYear: new Date().getFullYear(),
-    }
-    setUsers([newUser, ...users])
+    // Placeholder: invitation endpoint not yet wired in backend.
     setInviteSent(true)
     setTimeout(() => {
       setInviteSent(false)
@@ -153,7 +152,7 @@ const AdminUsers = () => {
 
   const applyBulkImport = () => {
     if (!bulkPreview.length) return
-    setUsers((prev) => [...bulkPreview, ...prev])
+    // Placeholder: bulk user creation endpoint not yet wired in backend.
     setIsBulkOpen(false)
     setBulkPreview([])
     setBulkFileName('')
@@ -264,9 +263,9 @@ const AdminUsers = () => {
                 </td>
                 <td className="whitespace-nowrap px-3 py-4">
                   <span
-                    className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${statusBadge(user.status)}`}
+                    className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${statusBadge(userStatuses[user.id] || user.status)}`}
                   >
-                    {user.status}
+                    {userStatuses[user.id] || user.status}
                   </span>
                 </td>
                 <td className="whitespace-nowrap py-4 pl-3 pr-6 text-right">
@@ -287,13 +286,13 @@ const AdminUsers = () => {
                     </button>
                     <button
                       onClick={() => toggleStatus(user.id)}
-                      className={`p-1.5 rounded-lg transition-colors ${user.status === 'Active' ? 'hover:text-amber-500 hover:bg-amber-50' : 'hover:text-emerald-500 hover:bg-emerald-50'}`}
-                      title={user.status === 'Active' ? 'Suspend' : 'Activate'}
+                      className={`p-1.5 rounded-lg transition-colors ${(userStatuses[user.id] || user.status) === 'Active' ? 'hover:text-amber-500 hover:bg-amber-50' : 'hover:text-emerald-500 hover:bg-emerald-50'}`}
+                      title={(userStatuses[user.id] || user.status) === 'Active' ? 'Suspend' : 'Activate'}
                     >
                       <Power size={15} />
                     </button>
                     <button
-                      onClick={() => setDeleteConfirm(user.id)}
+                      onClick={() => setDeleteConfirm(user.profileId)}
                       className="p-1.5 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                       title="Delete User"
                     >

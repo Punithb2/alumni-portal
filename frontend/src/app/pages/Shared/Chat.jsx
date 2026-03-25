@@ -2,18 +2,13 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Search,
   Send,
-  File,
-  Image,
   MoreVertical,
-  Phone,
-  Video,
   Info,
   ArrowLeft,
-  Smile,
 } from 'lucide-react'
-import { dummyProfiles, dummyMessages } from '../../data/dummyData'
 import useAuth from '../../hooks/useAuth'
 import ChatProfileSheet from './ChatProfileSheet'
+import { useChat } from '../../hooks/useChat'
 
 const Chat = () => {
   const { user } = useAuth()
@@ -22,11 +17,18 @@ const Chat = () => {
     name: 'Current User',
     avatar: 'https://i.pravatar.cc/150?u=current',
   }
+  const {
+    contacts,
+    messagesByConversation,
+    loadingConversations,
+    loadingMessages,
+    fetchMessages,
+    sendMessage,
+  } = useChat(currentUser.id)
   const [selectedChat, setSelectedChat] = useState(null)
   const [showProfileSheet, setShowProfileSheet] = useState(false)
 
   const [messageInput, setMessageInput] = useState('')
-  const [messages, setMessages] = useState(dummyMessages)
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -35,7 +37,7 @@ const Chat = () => {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, selectedChat])
+  }, [messagesByConversation, selectedChat])
 
   // Reset profile sheet when chat changes
   useEffect(() => {
@@ -44,18 +46,16 @@ const Chat = () => {
     }, 0)
   }, [selectedChat])
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault()
-    if (!messageInput.trim()) return
-    const newMessage = {
-      id: `m${messages.length + 1}`,
-      senderId: currentUser.id,
-      text: messageInput.trim(),
-      timestamp: new Date(),
-      isOwn: true,
+    const text = messageInput.trim()
+    if (!text || !selectedChat) return
+    try {
+      await sendMessage(selectedChat.conversationId, text)
+      setMessageInput('')
+    } catch (err) {
+      console.error('Failed to send message:', err)
     }
-    setMessages([...messages, newMessage])
-    setMessageInput('')
   }
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -126,13 +126,23 @@ const Chat = () => {
       new Date(date)
     )
 
-  const filteredContacts = dummyProfiles.filter((p) => {
+  useEffect(() => {
+    if (selectedChat?.conversationId) {
+      fetchMessages(selectedChat.conversationId)
+    }
+  }, [selectedChat, fetchMessages])
+
+  const filteredContacts = contacts.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase())
     let matchesRole = true
-    if (roleFilter === 'Alumni') matchesRole = p.graduationYear && p.graduationYear < 2023
-    if (roleFilter === 'Students') matchesRole = p.graduationYear && p.graduationYear >= 2023
+    if (roleFilter === 'Alumni') matchesRole = p.role?.toLowerCase().includes('alumni')
+    if (roleFilter === 'Students') matchesRole = p.role?.toLowerCase().includes('student')
     return matchesSearch && matchesRole
   })
+
+  const selectedMessages = selectedChat
+    ? messagesByConversation[selectedChat.conversationId] || []
+    : []
 
   return (
     <div
@@ -182,7 +192,11 @@ const Chat = () => {
 
         {/* Contact List */}
         <div className="flex-1 overflow-y-auto w-full">
-          {filteredContacts.length > 0 ? (
+          {loadingConversations ? (
+            <div className="p-8 text-center text-slate-400">
+              <p className="text-sm">Loading conversations...</p>
+            </div>
+          ) : filteredContacts.length > 0 ? (
             <ul className="p-2 space-y-1">
               {filteredContacts.map((profile) => (
                 <li key={profile.id}>
@@ -286,11 +300,15 @@ const Chat = () => {
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-6 space-y-4 bg-slate-50/50">
-              {messages.map((msg, index) => {
+              {loadingMessages && (
+                <div className="text-xs text-slate-500 text-center">Loading messages...</div>
+              )}
+              {selectedMessages.map((msg, index) => {
                 const isIncoming = !msg.isOwn
-                const senderProps = dummyProfiles.find((p) => p.id === msg.senderId) || currentUser
+                const senderProps = isIncoming ? selectedChat : currentUser
                 const showAvatar =
-                  index === messages.length - 1 || messages[index + 1]?.senderId !== msg.senderId
+                  index === selectedMessages.length - 1 ||
+                  selectedMessages[index + 1]?.senderId !== msg.senderId
 
                 return (
                   <div
@@ -401,7 +419,7 @@ const Chat = () => {
       </div>
 
       {/* Profile Sheet Splitter */}
-      {showProfileSheet && selectedChat && (
+              {showProfileSheet && selectedChat && (
         <div
           className="hidden lg:block w-1 bg-slate-100 hover:bg-indigo-400 cursor-col-resize shrink-0 transition-colors z-20 group relative"
           onMouseDown={startProfileResizing}

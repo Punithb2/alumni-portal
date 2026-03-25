@@ -1,325 +1,220 @@
 // src/app/hooks/useClubs.js
-// Custom hook providing reactive state for the Clubs feature using localStorage for persistence
-import { useState, useCallback, useEffect } from 'react'
-import {
-  INITIAL_CLUBS,
-  INITIAL_POSTS,
-  INITIAL_MEMBERS,
-  INITIAL_JOIN_REQUESTS,
-  INITIAL_MESSAGES,
-  USER_JOINED_GROUP_IDS,
-  USER_PENDING_GROUP_IDS,
-  CLUB_EVENTS,
-  CLUB_JOBS,
-} from '../data/clubsStore'
-
-// Simple module-level store so state persists across component mounts within the same session
-let _clubs = [...INITIAL_CLUBS]
-let _posts = { ...INITIAL_POSTS }
-let _members = { ...INITIAL_MEMBERS }
-let _joinRequests = { ...INITIAL_JOIN_REQUESTS }
-let _messages = { ...INITIAL_MESSAGES }
-let _joinedIds = new Set(USER_JOINED_GROUP_IDS)
-let _pendingIds = new Set(USER_PENDING_GROUP_IDS)
-let _listeners = []
-
-const notify = () => _listeners.forEach((fn) => fn())
+// Custom hook providing reactive state for the Clubs feature using the real backend API
+import { useState, useEffect, useCallback } from 'react'
+import api from 'app/utils/api'
 
 export function useClubs() {
-  const [, forceUpdate] = useState(0)
+  const [clubs, setClubs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  // Map of clubId -> posts/members/messages loaded on demand
+  const [posts, setPosts] = useState({})
+  const [members, setMembers] = useState({})
+  const [joinRequests, setJoinRequests] = useState({})
+  const [messages, setMessages] = useState({})
 
-  const subscribe = useCallback(() => {
-    const re = () => forceUpdate((n) => n + 1)
-    _listeners.push(re)
-    return () => {
-      _listeners = _listeners.filter((l) => l !== re)
+  const fetchClubs = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await api.get('/clubs/')
+      setClubs(res.data.results ?? res.data)
+    } catch (err) {
+      console.error('Failed to load clubs:', err)
+      setError('Failed to load clubs.')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  // Subscribe on mount
   useEffect(() => {
-    const unsub = subscribe()
-    return unsub
-  }, [subscribe])
+    fetchClubs()
+  }, [fetchClubs])
 
-  // ─── Club CRUD ─────────────────────────────────────────────────────────────
-  const createClub = useCallback((data) => {
-    const requiresUniversityApproval = data.isPrivate && data.createdByRole === 'Alumni'
-    const creatorName = data.createdByName || 'You'
+  // ─── Computed sets ────────────────────────────────────────────────────────
+  const joinedIds = new Set(clubs.filter((c) => c.is_member).map((c) => c.id))
+  const pendingIds = new Set(clubs.filter((c) => c.is_pending).map((c) => c.id))
 
-    const ownerMember = {
-      id: 'me',
-      name: creatorName,
-      role: 'Owner',
-      avatar:
-        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150',
-      title: 'Founder',
-      joinedAt: 'Just now',
-      isOnline: true,
-    }
+  // ─── Club CRUD ────────────────────────────────────────────────────────────
+  const createClub = async (data) => {
+    const res = await api.post('/clubs/', data)
+    setClubs((prev) => [res.data, ...prev])
+    return res.data
+  }
 
-    const invitedMembers = Array.isArray(data.initialMembers) ? data.initialMembers : []
-    const allMembers = [ownerMember, ...invitedMembers]
+  const updateClub = async (id, data) => {
+    const res = await api.patch(`/clubs/${id}/`, data)
+    setClubs((prev) => prev.map((c) => (c.id === id ? res.data : c)))
+    return res.data
+  }
 
-    const newClub = {
-      ...data,
-      id: Date.now(),
-      membersCount: allMembers.length,
-      status: requiresUniversityApproval ? 'pending' : data.status || 'active',
-      createdAt: new Date().toISOString().split('T')[0],
-      memberAvatars: allMembers
-        .slice(0, 5)
-        .map((m) => m.avatar)
-        .filter(Boolean),
-      admins: [
-        {
-          id: 'me',
-          name: creatorName,
-          role: 'Owner',
-          avatar: ownerMember.avatar,
-        },
-      ],
-      tags: data.tags || [],
-      rules: [],
-    }
-    _clubs = [newClub, ..._clubs]
-    _joinedIds = new Set([..._joinedIds, newClub.id])
-    _members = {
-      ..._members,
-      [newClub.id]: allMembers,
-    }
-    _posts = {
-      ..._posts,
-      [newClub.id]: [],
-    }
-    notify()
-    return newClub
-  }, [])
+  const deleteClub = async (id) => {
+    await api.delete(`/clubs/${id}/`)
+    setClubs((prev) => prev.filter((c) => c.id !== id))
+  }
 
-  const updateClub = useCallback((id, data) => {
-    _clubs = _clubs.map((c) => (c.id === id ? { ...c, ...data } : c))
-    notify()
-  }, [])
+  const approveClub = async (id) => {
+    const res = await api.post(`/clubs/${id}/approve/`)
+    setClubs((prev) => prev.map((c) => (c.id === id ? { ...c, status: res.data.status } : c)))
+  }
 
-  const deleteClub = useCallback((id) => {
-    _clubs = _clubs.filter((c) => c.id !== id)
-    _joinedIds.delete(id)
-    notify()
-  }, [])
+  const suspendClub = async (id) => {
+    const res = await api.post(`/clubs/${id}/suspend/`)
+    setClubs((prev) => prev.map((c) => (c.id === id ? { ...c, status: res.data.status } : c)))
+  }
 
-  const approveClub = useCallback((id) => {
-    _clubs = _clubs.map((c) => (c.id === id ? { ...c, status: 'active' } : c))
-    notify()
-  }, [])
-
-  const suspendClub = useCallback((id) => {
-    _clubs = _clubs.map((c) => (c.id === id ? { ...c, status: 'suspended' } : c))
-    notify()
-  }, [])
-
-  // ─── Membership ────────────────────────────────────────────────────────────
-  const joinClub = useCallback((clubId) => {
-    const club = _clubs.find((c) => c.id === clubId)
-    if (!club) return
-    if (club.isPrivate) {
-      // Send a join request
-      _pendingIds = new Set([..._pendingIds, clubId])
-    } else {
-      _joinedIds = new Set([..._joinedIds, clubId])
-      _clubs = _clubs.map((c) => (c.id === clubId ? { ...c, membersCount: c.membersCount + 1 } : c))
-    }
-    notify()
-  }, [])
-
-  const leaveClub = useCallback((clubId) => {
-    _joinedIds.delete(clubId)
-    _joinedIds = new Set(_joinedIds)
-    _clubs = _clubs.map((c) =>
-      c.id === clubId ? { ...c, membersCount: Math.max(0, c.membersCount - 1) } : c
+  // ─── Membership ───────────────────────────────────────────────────────────
+  const joinClub = async (clubId) => {
+    const res = await api.post(`/clubs/${clubId}/join/`)
+    setClubs((prev) =>
+      prev.map((c) =>
+        c.id === clubId
+          ? {
+              ...c,
+              is_member: res.data.status === 'joined',
+              is_pending: res.data.status === 'pending',
+              members_count: res.data.status === 'joined' ? c.members_count + 1 : c.members_count,
+            }
+          : c
+      )
     )
-    notify()
-  }, [])
+  }
 
-  const cancelRequest = useCallback((clubId) => {
-    _pendingIds.delete(clubId)
-    _pendingIds = new Set(_pendingIds)
-    notify()
-  }, [])
-
-  // ─── Join Request Approval ─────────────────────────────────────────────────
-  const approveJoinRequest = useCallback((clubId, requestId) => {
-    const req = (_joinRequests[clubId] || []).find((r) => r.id === requestId)
-    if (!req) return
-    _joinRequests = {
-      ..._joinRequests,
-      [clubId]: (_joinRequests[clubId] || []).filter((r) => r.id !== requestId),
-    }
-    const newMember = {
-      id: req.userId,
-      name: req.name,
-      role: 'Member',
-      avatar: req.avatar,
-      title: req.title,
-      joinedAt: 'Just now',
-      isOnline: false,
-    }
-    _members = {
-      ..._members,
-      [clubId]: [...(_members[clubId] || []), newMember],
-    }
-    _clubs = _clubs.map((c) => (c.id === clubId ? { ...c, membersCount: c.membersCount + 1 } : c))
-    notify()
-  }, [])
-
-  const rejectJoinRequest = useCallback((clubId, requestId) => {
-    _joinRequests = {
-      ..._joinRequests,
-      [clubId]: (_joinRequests[clubId] || []).filter((r) => r.id !== requestId),
-    }
-    notify()
-  }, [])
-
-  const removeMember = useCallback((clubId, memberId) => {
-    _members = {
-      ..._members,
-      [clubId]: (_members[clubId] || []).filter((m) => m.id !== memberId),
-    }
-    _clubs = _clubs.map((c) =>
-      c.id === clubId ? { ...c, membersCount: Math.max(0, c.membersCount - 1) } : c
+  const leaveClub = async (clubId) => {
+    await api.post(`/clubs/${clubId}/leave/`)
+    setClubs((prev) =>
+      prev.map((c) =>
+        c.id === clubId
+          ? { ...c, is_member: false, members_count: Math.max(0, c.members_count - 1) }
+          : c
+      )
     )
-    notify()
-  }, [])
+  }
 
-  const promoteMember = useCallback((clubId, memberId) => {
-    _members = {
-      ..._members,
-      [clubId]: (_members[clubId] || []).map((m) =>
-        m.id === memberId ? { ...m, role: m.role === 'Moderator' ? 'Member' : 'Moderator' } : m
-      ),
-    }
-    notify()
-  }, [])
+  const cancelRequest = async (clubId) => {
+    await api.post(`/clubs/${clubId}/cancel_request/`)
+    setClubs((prev) => prev.map((c) => (c.id === clubId ? { ...c, is_pending: false } : c)))
+  }
+
+  // ─── Members ──────────────────────────────────────────────────────────────
+  const fetchMembers = async (clubId) => {
+    const res = await api.get(`/clubs/${clubId}/members/`)
+    setMembers((prev) => ({ ...prev, [clubId]: res.data }))
+    return res.data
+  }
+
+  const removeMember = async (clubId, membershipId) => {
+    await api.delete(`/club-memberships/${membershipId}/`)
+    setMembers((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).filter((m) => m.id !== membershipId),
+    }))
+    setClubs((prev) =>
+      prev.map((c) =>
+        c.id === clubId ? { ...c, members_count: Math.max(0, c.members_count - 1) } : c
+      )
+    )
+  }
+
+  const promoteMember = async (clubId, membershipId, newRole) => {
+    const res = await api.patch(`/club-memberships/${membershipId}/`, { role: newRole })
+    setMembers((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).map((m) => (m.id === membershipId ? res.data : m)),
+    }))
+  }
+
+  // ─── Join Requests ────────────────────────────────────────────────────────
+  const fetchJoinRequests = async (clubId) => {
+    const res = await api.get(`/clubs/${clubId}/join_requests/`)
+    setJoinRequests((prev) => ({ ...prev, [clubId]: res.data }))
+    return res.data
+  }
+
+  const approveJoinRequest = async (clubId, requestId) => {
+    await api.post(`/clubs/${clubId}/approve_request/`, { request_id: requestId })
+    setJoinRequests((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).filter((r) => r.id !== requestId),
+    }))
+    setClubs((prev) =>
+      prev.map((c) => (c.id === clubId ? { ...c, members_count: c.members_count + 1 } : c))
+    )
+  }
+
+  const rejectJoinRequest = async (clubId, requestId) => {
+    await api.post(`/clubs/${clubId}/reject_request/`, { request_id: requestId })
+    setJoinRequests((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).filter((r) => r.id !== requestId),
+    }))
+  }
 
   // ─── Posts ────────────────────────────────────────────────────────────────
-  const createPost = useCallback((clubId, postData) => {
-    const newPost = {
-      id: Date.now(),
-      author: postData.author || 'You',
-      authorId: 'me',
-      avatar:
-        postData.avatar ||
-        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150',
-      time: 'Just now',
-      content: postData.content,
-      likes: 0,
-      comments: [],
-      isPinned: false,
-      image: postData.image || null,
-    }
-    _posts = {
-      ..._posts,
-      [clubId]: [newPost, ...(_posts[clubId] || [])],
-    }
-    notify()
-    return newPost
-  }, [])
+  const fetchPosts = async (clubId) => {
+    const res = await api.get(`/clubs/${clubId}/posts/`)
+    setPosts((prev) => ({ ...prev, [clubId]: res.data }))
+    return res.data
+  }
 
-  const deletePost = useCallback((clubId, postId) => {
-    _posts = {
-      ..._posts,
-      [clubId]: (_posts[clubId] || []).filter((p) => p.id !== postId),
-    }
-    notify()
-  }, [])
+  const createPost = async (clubId, postData) => {
+    const res = await api.post(`/clubs/${clubId}/create_post/`, postData)
+    setPosts((prev) => ({ ...prev, [clubId]: [res.data, ...(prev[clubId] || [])] }))
+    return res.data
+  }
 
-  const likePost = useCallback((clubId, postId, liked) => {
-    _posts = {
-      ..._posts,
-      [clubId]: (_posts[clubId] || []).map((p) =>
-        p.id === postId ? { ...p, likes: liked ? p.likes - 1 : p.likes + 1 } : p
+  const deletePost = async (clubId, postId) => {
+    await api.delete(`/club-posts/${postId}/`)
+    setPosts((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).filter((p) => p.id !== postId),
+    }))
+  }
+
+  const likePost = async (clubId, postId, isLiked) => {
+    const endpoint = isLiked ? 'unlike' : 'like'
+    const res = await api.post(`/club-posts/${postId}/${endpoint}/`)
+    setPosts((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).map((p) =>
+        p.id === postId ? { ...p, likes: res.data.likes } : p
       ),
-    }
-    notify()
-  }, [])
+    }))
+  }
 
-  const addComment = useCallback((clubId, postId, comment) => {
-    _posts = {
-      ..._posts,
-      [clubId]: (_posts[clubId] || []).map((p) =>
-        p.id === postId
-          ? {
-              ...p,
-              comments: [
-                { id: Date.now(), ...comment, time: 'Just now', replies: [] },
-                ...p.comments,
-              ],
-            }
-          : p
+  const pinPost = async (clubId, postId) => {
+    const res = await api.post(`/club-posts/${postId}/pin/`)
+    setPosts((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).map((p) =>
+        p.id === postId ? { ...p, is_pinned: res.data.is_pinned } : p
       ),
-    }
-    notify()
-  }, [])
-
-  const addReply = useCallback((clubId, postId, commentId, reply) => {
-    _posts = {
-      ..._posts,
-      [clubId]: (_posts[clubId] || []).map((p) => {
-        if (p.id !== postId) return p
-        return {
-          ...p,
-          comments: p.comments.map((c) =>
-            c.id === commentId
-              ? {
-                  ...c,
-                  replies: [{ id: Date.now(), ...reply, time: 'Just now' }, ...(c.replies || [])],
-                }
-              : c
-          ),
-        }
-      }),
-    }
-    notify()
-  }, [])
-
-  const pinPost = useCallback((clubId, postId) => {
-    _posts = {
-      ..._posts,
-      [clubId]: (_posts[clubId] || []).map((p) =>
-        p.id === postId ? { ...p, isPinned: !p.isPinned } : p
-      ),
-    }
-    notify()
-  }, [])
+    }))
+  }
 
   // ─── Chat ─────────────────────────────────────────────────────────────────
-  const sendMessage = useCallback((clubId, message) => {
-    const newMsg = {
-      id: Date.now(),
-      senderId: 'me',
-      sender: 'You',
-      initials: 'ME',
-      isMe: true,
-      text: message,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'Sent',
-    }
-    _messages = {
-      ..._messages,
-      [clubId]: [...(_messages[clubId] || []), newMsg],
-    }
-    notify()
-  }, [])
+  const fetchChat = async (clubId) => {
+    const res = await api.get(`/clubs/${clubId}/chat/`)
+    setMessages((prev) => ({ ...prev, [clubId]: res.data }))
+    return res.data
+  }
+
+  const sendMessage = async (clubId, text) => {
+    const res = await api.post(`/clubs/${clubId}/send_message/`, { text })
+    setMessages((prev) => ({ ...prev, [clubId]: [...(prev[clubId] || []), res.data] }))
+    return res.data
+  }
 
   return {
-    clubs: _clubs,
-    posts: _posts,
-    members: _members,
-    joinRequests: _joinRequests,
-    messages: _messages,
-    joinedIds: _joinedIds,
-    pendingIds: _pendingIds,
-    clubEvents: CLUB_EVENTS,
-    clubJobs: CLUB_JOBS,
+    clubs,
+    posts,
+    members,
+    joinRequests,
+    messages,
+    joinedIds,
+    pendingIds,
+    loading,
+    error,
 
     // Club actions
     createClub,
@@ -327,27 +222,32 @@ export function useClubs() {
     deleteClub,
     approveClub,
     suspendClub,
+    refetch: fetchClubs,
 
     // Membership
     joinClub,
     leaveClub,
     cancelRequest,
 
-    // Join requests
-    approveJoinRequest,
-    rejectJoinRequest,
+    // Members management
+    fetchMembers,
     removeMember,
     promoteMember,
 
+    // Join requests
+    fetchJoinRequests,
+    approveJoinRequest,
+    rejectJoinRequest,
+
     // Posts
+    fetchPosts,
     createPost,
     deletePost,
     likePost,
-    addComment,
-    addReply,
     pinPost,
 
     // Chat
+    fetchChat,
     sendMessage,
   }
 }

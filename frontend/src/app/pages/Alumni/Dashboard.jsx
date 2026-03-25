@@ -5,7 +5,7 @@ import useAuth from '../../hooks/useAuth'
 import { useGamification } from '../../hooks/useGamification'
 import { BADGES } from '../../data/gamification'
 import { OnlineHighlightRow, PostComposer, FeedPost } from '../../components/DashboardComponents'
-import { ALUMNI_POSTS } from '../../data/feedStore'
+import { useFeed } from '../../hooks/useFeed'
 
 const ALUMNI_USERS = [
   {
@@ -36,7 +36,8 @@ const PAGE_SIZE = 5
 const AlumniDashboard = () => {
   const { user } = useAuth()
   const { points, earnedBadges } = useGamification()
-  const [allPosts, setAllPosts] = useState(ALUMNI_POSTS)
+  const { uiPosts, addPost } = useFeed()
+  const [allPosts, setAllPosts] = useState([])
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const sentinelRef = useRef(null)
@@ -44,27 +45,19 @@ const AlumniDashboard = () => {
   const visiblePosts = allPosts.slice(0, visibleCount)
   const hasMore = visibleCount < allPosts.length
 
+  useEffect(() => {
+    setAllPosts(uiPosts)
+  }, [uiPosts])
+
   const handleNewPost = useCallback(
-    ({ text, postType, images }) => {
-      const newPost = {
-        id: Date.now(),
-        author: user?.displayName || user?.name || 'You',
-        role: 'Alumni',
-        avatar: user?.avatar || 'https://xsgames.co/randomusers/assets/avatars/male/72.jpg',
-        verified: false,
-        verifiedType: null,
-        time: 'Just now',
-        type: postType || 'UPDATE',
-        content: text,
-        images: images || [],
-        reactions: {},
-        comments: 0,
-        shares: 0,
-        mockComments: [],
+    async ({ text, postType }) => {
+      try {
+        await addPost({ text, postType })
+      } catch (err) {
+        console.error('Failed to create post:', err)
       }
-      setAllPosts((prev) => [newPost, ...prev])
     },
-    [user]
+    [addPost]
   )
 
   const loadMore = useCallback(() => {

@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import DirectoryFilters from '../../components/DirectoryFilters'
-import { MOCK_PROFILES } from '../../utils/mockData'
 import api from '../../utils/api'
 import { ALUMNI_FILTER_OPTIONS } from '../../data/directoryFilters'
 import {
@@ -44,10 +43,6 @@ export default function AlumniDirectory() {
   // Fetch Profiles from Backend
   useEffect(() => {
     const fetchProfiles = async () => {
-      if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
-        setIsLoading(false)
-        return
-      }
       try {
         const response = await api.get('/profiles/')
         const profilesData = response.data.results || response.data
@@ -77,8 +72,7 @@ export default function AlumniDirectory() {
   }
 
   const filteredProfiles = useMemo(() => {
-    // Priority: Backend profiles > Mock profiles
-    let result = backendProfiles.length > 0 ? [...backendProfiles] : [...MOCK_PROFILES]
+    let result = [...backendProfiles]
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase()

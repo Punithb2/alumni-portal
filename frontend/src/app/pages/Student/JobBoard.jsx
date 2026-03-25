@@ -1,6 +1,5 @@
-import React, { useState, useMemo } from 'react'
-import { MOCK_JOBS } from '../../utils/mockData'
-import { dummyJobs } from '../../data/dummyData'
+import React, { useState, useMemo, useEffect } from 'react'
+import api from '../../utils/api'
 
 import JobsFilterBar from '../../components/Jobs/JobsFilterBar'
 import JobCard from '../../components/Jobs/JobCard'
@@ -50,17 +49,25 @@ const StudentJobBoard = () => {
   const [selectedJob, setSelectedJob] = useState(null)
 
   const [savedJobIds, setSavedJobIds] = useState(new Set())
+  const [backendJobs, setBackendJobs] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    api
+      .get('/jobs/')
+      .then((res) => setBackendJobs(res.data.results ?? res.data))
+      .catch((err) => console.error('Failed to fetch jobs', err))
+      .finally(() => setIsLoading(false))
+  }, [])
 
   // Derived Data
   const allJobs = useMemo(() => {
-    const defaultMock = (MOCK_JOBS || []).map(normalizeJob)
-    const dummys = dummyJobs.map((j) => ({ ...j, postedDate: 'Recently' }))
-    return [...dummys, ...defaultMock].sort((a, b) => {
+    return (backendJobs || []).map(normalizeJob).sort((a, b) => {
       const idA = parseInt(a.id) || 0
       const idB = parseInt(b.id) || 0
-      return idA - idB
+      return idB - idA
     })
-  }, [])
+  }, [backendJobs])
 
   const internships = useMemo(() => allJobs.filter((j) => j.type === 'Internship'), [allJobs])
 
@@ -182,7 +189,11 @@ const StudentJobBoard = () => {
             ))}
           </div>
 
-          {filteredJobs.length > 0 ? (
+          {isLoading ? (
+            <div className="py-20 flex justify-center items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+          ) : filteredJobs.length > 0 ? (
             <div className="flex flex-col">
               {filteredJobs.map((job) => (
                 <JobCard

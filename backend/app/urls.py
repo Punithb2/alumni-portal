@@ -24,10 +24,29 @@ router.register(r'mentoring-requests', views.MentoringRequestViewSet, basename='
 router.register(r'posts', views.PostViewSet, basename='post')
 router.register(r'comments', views.CommentViewSet, basename='comment')
 
-# Forums & Events
+# Forums
+router.register(r'forum-categories', views.ForumCategoryViewSet, basename='forum-category')
 router.register(r'forum-topics', views.ForumTopicViewSet, basename='forum-topic')
+router.register(r'forum-replies', views.ForumReplyViewSet, basename='forum-reply')
+
+# Events
 router.register(r'events', views.EventViewSet, basename='event')
+
+# Notifications & News
 router.register(r'notifications', views.NotificationViewSet, basename='notification')
+router.register(r'news', views.NewsArticleViewSet, basename='news')
+
+# Messaging
+router.register(r'conversations', views.ConversationViewSet, basename='conversation')
+router.register(r'messages', views.MessageViewSet, basename='message')
+
+# Campaigns & Donations
+router.register(r'campaigns', views.CampaignViewSet, basename='campaign')
+router.register(r'donations', views.DonationViewSet, basename='donation')
+
+# Clubs
+router.register(r'clubs', views.ClubViewSet, basename='club')
+router.register(r'club-posts', views.ClubPostViewSet, basename='club-post')
 
 urlpatterns = [
     path('auth/register/', views.RegisterView.as_view(), name='register'),

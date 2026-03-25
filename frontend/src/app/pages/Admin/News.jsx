@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { Plus, Trash2, Calendar, Image as ImageIcon, CheckCircle } from 'lucide-react'
-import { dummyNews } from '../../data/dummyData'
+import { useNews } from '../../hooks/useNews'
 
 const AdminNews = () => {
-  const [news, setNews] = useState(dummyNews)
+  const { news, createNews, updateNews, deleteNews } = useNews()
   const [selectedPost, setSelectedPost] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState('')
@@ -29,38 +29,37 @@ const AdminNews = () => {
   const handleEdit = (post) => {
     setSelectedPost(post)
     setTitle(post.title || '')
-    setSummary(post.summary || '')
-    setCategory(post.category || 'Campus')
+    setSummary(post.content || '')
+    setCategory(post.category_name || 'Campus')
     setIsPublished(true)
     setIsEditing(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) return
-    if (selectedPost) {
-      // Update existing post
-      setNews(news.map((n) => (n.id === selectedPost.id ? { ...n, title, summary, category } : n)))
-    } else {
-      // Create new post
-      const newPost = {
-        id: `n${Date.now()}`,
-        title,
-        summary,
-        category,
-        date: new Date(),
+    try {
+      if (selectedPost) {
+        await updateNews(selectedPost.id, { title, summary, category })
+      } else {
+        await createNews({ title, summary, category })
       }
-      setNews([newPost, ...news])
-    }
-    setIsEditing(false)
-    setSelectedPost(null)
-    showNotice()
-  }
-
-  const handleDelete = (postId) => {
-    setNews(news.filter((n) => n.id !== postId))
-    if (selectedPost?.id === postId) {
       setIsEditing(false)
       setSelectedPost(null)
+      showNotice()
+    } catch (err) {
+      console.error('Failed to save article:', err)
+    }
+  }
+
+  const handleDelete = async (postId) => {
+    try {
+      await deleteNews(postId)
+      if (selectedPost?.id === postId) {
+        setIsEditing(false)
+        setSelectedPost(null)
+      }
+    } catch (err) {
+      console.error('Failed to delete article:', err)
     }
   }
 
@@ -116,12 +115,12 @@ const AdminNews = () => {
                   <div className="flex items-center justify-between text-xs text-slate-500 mt-3">
                     <span className="flex items-center gap-1">
                       <Calendar size={12} />{' '}
-                      {post.date
+                      {post.published_at
                         ? new Intl.DateTimeFormat('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
-                          }).format(post.date)
+                          }).format(new Date(post.published_at))
                         : 'N/A'}
                     </span>
                     <span>By Admin</span>
@@ -216,8 +215,8 @@ const AdminNews = () => {
                 <div>
                   <label className="text-sm font-medium text-slate-700 block mb-1.5">Summary</label>
                   <textarea
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
+                      value={summary}
+                      onChange={(e) => setSummary(e.target.value)}
                     rows={3}
                     placeholder="Brief excerpt for the news feed..."
                     className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none shadow-sm transition-all"
@@ -245,10 +244,10 @@ const AdminNews = () => {
                   disabled={!title.trim()}
                   className="px-5 py-2.5 rounded-xl text-sm font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isPublished ? 'Save & Publish' : 'Save Draft'}
-                </button>
+                    {isPublished ? 'Save & Publish' : 'Save Draft'}
+                  </button>
+                </div>
               </div>
-            </div>
           </div>
         )}
       </div>

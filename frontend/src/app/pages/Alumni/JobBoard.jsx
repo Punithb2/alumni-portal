@@ -1,6 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { MOCK_JOBS } from '../../utils/mockData'
-import { dummyJobs } from '../../data/dummyData'
 import useAuth from '../../hooks/useAuth'
 import api from '../../utils/api'
 
@@ -63,13 +61,8 @@ const AlumniJobBoard = () => {
   // Fetch Jobs from Backend
   useEffect(() => {
     const fetchJobs = async () => {
-      if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
-        setIsLoading(false)
-        return
-      }
       try {
         const response = await api.get('/jobs/')
-        // Handle DRF pagination if present (response.data.results)
         const jobsData = response.data.results || response.data
         setBackendJobs(jobsData)
       } catch (error) {
@@ -85,19 +78,7 @@ const AlumniJobBoard = () => {
   const allJobs = useMemo(() => {
     const normalizedBackend = (backendJobs || []).map(normalizeJob)
     const normalizedPosted = (postedJobs || []).map(normalizeJob)
-
-    // Fallback to mocks if no backend data for demo purposes,
-    // but prioritize backend data if it exists and is non-empty.
-    // For a real app, you'd remove the mock fallbacks.
-    const jobs =
-      normalizedBackend.length > 0
-        ? [...normalizedPosted, ...normalizedBackend]
-        : [
-            ...normalizedPosted,
-            ...dummyJobs.map((j) => ({ ...j, postedDate: 'Recently' })),
-            ...(MOCK_JOBS || []).map(normalizeJob),
-          ]
-
+    const jobs = [...normalizedPosted, ...normalizedBackend]
     return jobs.sort((a, b) => {
       const idA = parseInt(a.id) || 0
       const idB = parseInt(b.id) || 0

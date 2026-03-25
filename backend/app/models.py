@@ -245,3 +245,182 @@ class Notification(models.Model):
     notification_type = models.CharField(max_length=50) # mentorship_request, job_update, etc.
     status = models.CharField(max_length=20, default='unread')
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+# ==========================================
+# 8. CAMPAIGNS & DONATIONS
+# ==========================================
+
+class Campaign(models.Model):
+    CATEGORY_CHOICES = [
+        ('scholarship', 'Scholarship'),
+        ('infrastructure', 'Infrastructure'),
+        ('research', 'Research'),
+        ('emergency', 'Emergency'),
+        ('sports', 'Sports'),
+        ('health', 'Health'),
+        ('cultural', 'Cultural'),
+        ('other', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('completed', 'Completed'),
+        ('paused', 'Paused'),
+        ('cancelled', 'Cancelled'),
+    ]
+    CAMPAIGN_TYPE_CHOICES = [
+        ('donation', 'Donation'),
+        ('participation', 'Participation'),
+    ]
+
+    title = models.CharField(max_length=255)
+    story = models.TextField()
+    long_story = models.TextField(blank=True)
+    impact_examples = models.JSONField(default=list)  # [{"amount": 500, "impact": "..."}]
+    goal = models.DecimalField(max_digits=14, decimal_places=2)
+    raised = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    currency = models.CharField(max_length=10, blank=True, null=True, default='INR')
+    deadline = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other')
+    campaign_type = models.CharField(max_length=20, choices=CAMPAIGN_TYPE_CHOICES, default='donation')
+    featured = models.BooleanField(default=False)
+    urgent = models.BooleanField(default=False)
+    donor_count = models.IntegerField(default=0)
+    allow_anonymous = models.BooleanField(default=True)
+    allow_recurring = models.BooleanField(default=True)
+    show_donor_list = models.BooleanField(default=True)
+    target_batch = models.IntegerField(null=True, blank=True)
+    target_department = models.CharField(max_length=100, blank=True, null=True)
+    image_url = models.URLField(blank=True, null=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='campaigns')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+
+class Donation(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    FREQUENCY_CHOICES = [
+        ('monthly', 'Monthly'),
+        ('quarterly', 'Quarterly'),
+        ('yearly', 'Yearly'),
+    ]
+
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='donations')
+    donor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='donations')
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
+    anonymous = models.BooleanField(default=False)
+    recurring = models.BooleanField(default=False)
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, blank=True, null=True)
+    campaign_type = models.CharField(max_length=20, default='donation')  # donation | participation
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.donor} → {self.campaign.title} ({self.amount})"
+
+
+# ==========================================
+# 9. CLUBS / GROUPS
+# ==========================================
+
+class Club(models.Model):
+    CATEGORY_CHOICES = [
+        ('technical', 'Technical'),
+        ('cultural', 'Cultural'),
+        ('sports', 'Sports'),
+        ('academic', 'Academic'),
+        ('social', 'Social'),
+        ('professional', 'Professional'),
+        ('other', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('pending', 'Pending Approval'),
+        ('suspended', 'Suspended'),
+        ('archived', 'Archived'),
+    ]
+
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other')
+    is_private = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    cover_image = models.URLField(blank=True, null=True)
+    icon = models.CharField(max_length=10, blank=True)  # emoji
+    tags = ArrayField(models.CharField(max_length=50), blank=True, default=list)
+    rules = models.JSONField(default=list)
+    members_count = models.IntegerField(default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_clubs')
+    created_at = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
+class ClubMembership(models.Model):
+    ROLE_CHOICES = [
+        ('owner', 'Owner'),
+        ('admin', 'Admin'),
+        ('moderator', 'Moderator'),
+        ('member', 'Member'),
+    ]
+
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
+    joined_at = models.DateTimeField(auto_now_add=True)
+    title = models.CharField(max_length=100, blank=True)  # e.g. "Founder", "Captain"
+
+    class Meta:
+        unique_together = ('club', 'user')
+
+    def __str__(self):
+        return f"{self.user} in {self.club} ({self.role})"
+
+
+class ClubJoinRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='join_requests')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_join_requests')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    message = models.TextField(blank=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('club', 'user')
+
+
+class ClubPost(models.Model):
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='posts')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_posts')
+    content = models.TextField()
+    image = models.URLField(blank=True, null=True)
+    likes = models.IntegerField(default=0)
+    is_pinned = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Post in {self.club.name} by {self.author}"
+
+
+class ClubMessage(models.Model):
+    club = models.ForeignKey(Club, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_messages')
+    text = models.TextField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Message in {self.club.name} by {self.sender}"

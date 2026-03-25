@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import DirectoryFilters from '../../components/DirectoryFilters'
-import { MOCK_PROFILES } from '../../utils/mockData'
+import api from '../../utils/api'
 import {
   Mail,
   MapPin,
@@ -43,6 +43,16 @@ export default function StudentDirectory() {
 
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 24
+  const [backendProfiles, setBackendProfiles] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    api
+      .get('/profiles/')
+      .then((res) => setBackendProfiles(res.data.results ?? res.data))
+      .catch((err) => console.error('Failed to fetch profiles', err))
+      .finally(() => setIsLoading(false))
+  }, [])
 
   useEffect(() => {
     setTimeout(() => {
@@ -51,7 +61,7 @@ export default function StudentDirectory() {
   }, [filters, debouncedSearchQuery, sortOption])
 
   const filteredProfiles = useMemo(() => {
-    let result = [...MOCK_PROFILES]
+    let result = [...backendProfiles]
 
     if (debouncedSearchQuery) {
       const q = debouncedSearchQuery.toLowerCase()
@@ -101,7 +111,7 @@ export default function StudentDirectory() {
     })
 
     return result
-  }, [filters, sortOption, debouncedSearchQuery])
+  }, [filters, sortOption, debouncedSearchQuery, backendProfiles])
 
   const paginatedProfiles = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
@@ -180,7 +190,11 @@ export default function StudentDirectory() {
         onViewModeChange={setViewMode}
       >
         <div className="w-full mt-4 sm:mt-6">
-          {viewMode === 'grid' && (
+          {isLoading ? (
+            <div className="py-20 flex justify-center items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          ) : viewMode === 'grid' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-8">
                 {paginatedProfiles.map((p) => renderGridCard(p))}
