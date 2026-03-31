@@ -6,6 +6,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.exceptions import NotFound
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.utils import timezone
 from . import models
 from . import permissions as custom_permissions
 from .serializers import (
@@ -56,8 +57,135 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     serializer_class = UserProfileSerializer
     permission_classes = [custom_permissions.IsProfileOwnerOrAdmin]
 
+    def get_permissions(self):
+        if self.action in ['send_connection_request', 'accept_connection_request', 'reject_connection_request']:
+            return [permissions.IsAuthenticated()]
+        return [custom_permissions.IsProfileOwnerOrAdmin()]
+
     def get_serializer_context(self):
         return {'request': self.request}
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def send_connection_request(self, request, pk=None):
+        target_profile = self.get_object()
+        recipient = target_profile.user
+        sender = request.user
+
+        if recipient.id == sender.id:
+            raise ValidationError({'detail': ['You cannot send a connection request to yourself.']})
+
+        existing_connected = models.ConnectionRequest.objects.filter(
+            requester=sender,
+            recipient=recipient,
+            status='accepted',
+        ).exists() or models.ConnectionRequest.objects.filter(
+            requester=recipient,
+            recipient=sender,
+            status='accepted',
+        ).exists()
+        if existing_connected:
+            raise ValidationError({'detail': ['You are already connected.']})
+
+        pending_request = models.ConnectionRequest.objects.filter(
+            requester=sender,
+            recipient=recipient,
+            status='pending',
+        ).first()
+        if pending_request:
+            raise ValidationError({'detail': ['Connection request already sent.']})
+
+        sender_name = sender.get_full_name().strip() or sender.username
+        connection_request = models.ConnectionRequest.objects.create(
+            requester=sender,
+            recipient=recipient,
+            status='pending',
+        )
+        notification = models.Notification.objects.create(
+            user=recipient,
+            title='New connection request',
+            message=f'{sender_name} sent you a connection request.',
+            notification_type='connection_request',
+            metadata={'connection_request_id': connection_request.id, 'requester_user_id': sender.id},
+            status='unread',
+        )
+
+        serializer = NotificationSerializer(notification, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def accept_connection_request(self, request, pk=None):
+        target_profile = self.get_object()
+        requester = target_profile.user
+        recipient = request.user
+        connection_request = models.ConnectionRequest.objects.filter(
+            requester=requester,
+            recipient=recipient,
+            status='pending',
+        ).first()
+        if not connection_request:
+            raise NotFound('Pending connection request not found.')
+
+        with transaction.atomic():
+            connection_request.status = 'accepted'
+            connection_request.responded_at = timezone.now()
+            connection_request.save(update_fields=['status', 'responded_at'])
+
+            conversation = (
+                models.Conversation.objects
+                .filter(participants=requester)
+                .filter(participants=recipient)
+                .distinct()
+                .first()
+            )
+            if not conversation:
+                conversation = models.Conversation.objects.create(title='')
+                conversation.participants.set([requester, recipient])
+
+            models.Notification.objects.filter(
+                user=recipient,
+                notification_type='connection_request',
+                metadata__connection_request_id=connection_request.id,
+            ).update(status='read')
+
+            accepter_name = recipient.get_full_name().strip() or recipient.username
+            models.Notification.objects.create(
+                user=requester,
+                title='Connection request accepted',
+                message=f'{accepter_name} accepted your connection request.',
+                notification_type='connection_request_accepted',
+                metadata={
+                    'connection_request_id': connection_request.id,
+                    'conversation_id': conversation.id,
+                },
+                status='unread',
+            )
+
+        serializer = ConversationSerializer(conversation, context={'request': request})
+        return Response({'status': 'accepted', 'conversation': serializer.data})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def reject_connection_request(self, request, pk=None):
+        target_profile = self.get_object()
+        requester = target_profile.user
+        recipient = request.user
+        connection_request = models.ConnectionRequest.objects.filter(
+            requester=requester,
+            recipient=recipient,
+            status='pending',
+        ).first()
+        if not connection_request:
+            raise NotFound('Pending connection request not found.')
+
+        connection_request.status = 'rejected'
+        connection_request.responded_at = timezone.now()
+        connection_request.save(update_fields=['status', 'responded_at'])
+
+        models.Notification.objects.filter(
+            user=recipient,
+            notification_type='connection_request',
+            metadata__connection_request_id=connection_request.id,
+        ).update(status='read')
+        return Response({'status': 'rejected'})
 
 class WorkExperienceViewSet(viewsets.ModelViewSet):
     serializer_class = WorkExperienceSerializer
@@ -307,6 +435,82 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().update(status='read')
         return Response({'status': 'all read'})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def accept_connection(self, request, pk=None):
+        notification = self.get_object()
+        if notification.notification_type != 'connection_request':
+            raise ValidationError({'detail': ['This notification is not a connection request.']})
+
+        req_id = (notification.metadata or {}).get('connection_request_id')
+        connection_request = models.ConnectionRequest.objects.filter(
+            id=req_id,
+            recipient=request.user,
+        ).first()
+        if not connection_request:
+            raise NotFound('Connection request not found.')
+        if connection_request.status != 'pending':
+            raise ValidationError({'detail': [f'Connection request already {connection_request.status}.']})
+
+        with transaction.atomic():
+            connection_request.status = 'accepted'
+            connection_request.responded_at = timezone.now()
+            connection_request.save(update_fields=['status', 'responded_at'])
+
+            participants = [connection_request.requester, connection_request.recipient]
+            existing_conversation = (
+                models.Conversation.objects
+                .filter(participants=participants[0])
+                .filter(participants=participants[1])
+                .distinct()
+                .first()
+            )
+            if not existing_conversation:
+                existing_conversation = models.Conversation.objects.create(title='')
+                existing_conversation.participants.set(participants)
+
+            notification.status = 'read'
+            notification.save(update_fields=['status'])
+
+            accepter_name = request.user.get_full_name().strip() or request.user.username
+            models.Notification.objects.create(
+                user=connection_request.requester,
+                title='Connection request accepted',
+                message=f'{accepter_name} accepted your connection request.',
+                notification_type='connection_request_accepted',
+                metadata={
+                    'connection_request_id': connection_request.id,
+                    'conversation_id': existing_conversation.id,
+                },
+                status='unread',
+            )
+
+        serializer = ConversationSerializer(existing_conversation, context={'request': request})
+        return Response({'status': 'accepted', 'conversation': serializer.data})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def reject_connection(self, request, pk=None):
+        notification = self.get_object()
+        if notification.notification_type != 'connection_request':
+            raise ValidationError({'detail': ['This notification is not a connection request.']})
+
+        req_id = (notification.metadata or {}).get('connection_request_id')
+        connection_request = models.ConnectionRequest.objects.filter(
+            id=req_id,
+            recipient=request.user,
+        ).first()
+        if not connection_request:
+            raise NotFound('Connection request not found.')
+        if connection_request.status != 'pending':
+            raise ValidationError({'detail': [f'Connection request already {connection_request.status}.']})
+
+        connection_request.status = 'rejected'
+        connection_request.responded_at = timezone.now()
+        connection_request.save(update_fields=['status', 'responded_at'])
+
+        notification.status = 'read'
+        notification.save(update_fields=['status'])
+        return Response({'status': 'rejected'})
 
 class NewsArticleViewSet(viewsets.ModelViewSet):
     queryset = models.NewsArticle.objects.order_by('-published_at').all()

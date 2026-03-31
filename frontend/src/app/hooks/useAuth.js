@@ -13,6 +13,7 @@ export default function useAuth() {
       login: () => Promise.resolve(),
       logout: () => Promise.resolve(),
       register: () => Promise.resolve(),
+      updateProfileInSession: () => {},
     }
   }
 

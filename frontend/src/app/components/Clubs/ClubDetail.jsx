@@ -63,13 +63,13 @@ const TABS = [
 // 1) FEED TAB
 // ═══════════════════════════════════════════════════════════════
 const FeedTab = ({
-  clubId,
   user,
   posts,
   isAdmin,
   onCreatePost,
   onLike,
   onComment,
+  onReply,
   onDelete,
   onPin,
   likedPosts,
@@ -125,12 +125,10 @@ const FeedTab = ({
     setCommentInputs((prev) => ({ ...prev, [postId]: '' }))
   }
 
-  const { addReply } = useClubs() // Access addReply
-
   const handleReplySubmit = (postId, commentId) => {
     const txt = replyInputs[commentId]?.trim()
     if (!txt) return
-    addReply(clubId, postId, commentId, {
+    onReply?.(postId, commentId, {
       author: user?.firstName ? `${user.firstName} ${user.lastName}` : 'You',
       avatar:
         'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150',
@@ -161,7 +159,7 @@ const FeedTab = ({
               value={feedMsg}
               onChange={(e) => setFeedMsg(e.target.value)}
               placeholder="Share an update, ask a question, or post a link…"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none min-h-[80px] font-medium placeholder:text-slate-400 transition-all"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none min-h-20 font-medium placeholder:text-slate-400 transition-all"
             />
             {feedImage && (
               <div className="relative inline-block mt-2">
@@ -459,7 +457,7 @@ const ChatTab = ({ messages, onSend }) => {
 
   return (
     <div className="max-w-3xl mx-auto w-full">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[600px] overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-150 overflow-hidden">
         {/* Chat Header */}
         <div className="px-5 py-4 border-b border-slate-100 bg-white flex items-center gap-3 shrink-0">
           <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
@@ -1044,14 +1042,12 @@ const ClubDetail = ({ groupId }) => {
     messages,
     joinedIds,
     pendingIds,
-    clubEvents,
     joinClub,
     leaveClub,
     cancelRequest,
     createPost,
     deletePost,
     likePost,
-    addComment,
     pinPost,
     approveJoinRequest,
     rejectJoinRequest,
@@ -1078,7 +1074,7 @@ const ClubDetail = ({ groupId }) => {
   const groupMembers = members[group?.id] || []
   const groupRequests = joinRequests[group?.id] || []
   const groupMessages = messages[group?.id] || []
-  const groupEvents = clubEvents[group?.id] || []
+  const groupEvents = []
 
   const handleJoinToggle = () => {
     if (isJoined) {
@@ -1135,7 +1131,7 @@ const ClubDetail = ({ groupId }) => {
           {group.coverPhoto && (
             <img src={group.coverPhoto} alt={group.name} className="w-full h-full object-cover" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/85 via-slate-900/20 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-slate-900/85 via-slate-900/20 to-transparent" />
           {/* Privacy badge */}
           <div className="absolute top-4 right-4">
             {group.isPrivate ? (
@@ -1185,7 +1181,7 @@ const ClubDetail = ({ groupId }) => {
                   ))}
                 </div>
                 <span className="text-white text-sm font-bold">
-                  +{group.membersCount.toLocaleString()}
+                  +{(group.membersCount || group.members_count || 0).toLocaleString()}
                 </span>
               </div>
               <button
@@ -1247,7 +1243,8 @@ const ClubDetail = ({ groupId }) => {
               likedPosts={likedPosts}
               onCreatePost={(postData) => createPost(group.id, postData)}
               onLike={handleLike}
-              onComment={(postId, comment) => addComment(group.id, postId, comment)}
+              onComment={() => {}}
+              onReply={() => {}}
               onDelete={(postId) => deletePost(group.id, postId)}
               onPin={(postId) => pinPost(group.id, postId)}
             />

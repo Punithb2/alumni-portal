@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import ProfileSheet from '../Alumni/ProfileSheet'
 import { ChevronLeft } from 'lucide-react'
 import api from '../../utils/api'
+import { normalizeProfileIdentity } from '../../utils/profileIdentity'
 
 const ProfileDetail = () => {
   const { id } = useParams()
@@ -24,7 +25,7 @@ const ProfileDetail = () => {
       setError(null)
       try {
         const res = await api.get(`/profiles/${id}/`)
-        if (mounted) setProfile(res.data)
+        if (mounted) setProfile(normalizeProfileIdentity(res.data))
       } catch (err) {
         console.error('Failed to fetch profile detail', err)
         if (mounted) setError('Unable to load profile.')

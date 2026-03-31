@@ -19,8 +19,12 @@ import ProfileSheet from '../Alumni/ProfileSheet'
 import DirectoryMap from '../../components/DirectoryMap'
 import { STUDENT_FILTER_OPTIONS } from '../../data/directoryFilters'
 import { getAvatarDataUrl } from '../../utils/avatar'
+import { normalizeProfileIdentity } from '../../utils/profileIdentity'
+import useAuth from '../../hooks/useAuth'
 
 export default function StudentDirectory() {
+  const { user } = useAuth()
+  const currentUserId = user?.id
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
   const [filters, setFilters] = useState({
     industry: [],
@@ -51,7 +55,13 @@ export default function StudentDirectory() {
   useEffect(() => {
     api
       .get('/profiles/')
-      .then((res) => setBackendProfiles(res.data.results ?? res.data))
+      .then((res) =>
+        setBackendProfiles(
+          (Array.isArray(res.data.results ?? res.data) ? res.data.results ?? res.data : []).map(
+            normalizeProfileIdentity
+          )
+        )
+      )
       .catch((err) => console.error('Failed to fetch profiles', err))
       .finally(() => setIsLoading(false))
   }, [])
@@ -64,6 +74,10 @@ export default function StudentDirectory() {
 
   const filteredProfiles = useMemo(() => {
     let result = [...backendProfiles]
+
+    if (currentUserId) {
+      result = result.filter((p) => String(p.user?.id) !== String(currentUserId))
+    }
 
     if (debouncedSearchQuery) {
       const q = debouncedSearchQuery.toLowerCase()
@@ -113,7 +127,7 @@ export default function StudentDirectory() {
     })
 
     return result
-  }, [filters, sortOption, debouncedSearchQuery, backendProfiles])
+  }, [filters, sortOption, debouncedSearchQuery, backendProfiles, currentUserId])
 
   const paginatedProfiles = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE

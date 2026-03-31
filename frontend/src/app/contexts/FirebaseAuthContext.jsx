@@ -36,10 +36,46 @@ const setStoredSession = (user) => {
   localStorage.setItem(SESSION_KEY, JSON.stringify(user))
 }
 
+const getStoredSettingsProfile = (userId) => {
+  if (!userId) return {}
+  try {
+    const raw = localStorage.getItem(`settings_profile_${userId}`)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
 const clearStoredSession = () => {
   localStorage.removeItem(SESSION_KEY)
   localStorage.removeItem('accessToken')
   localStorage.removeItem('refreshToken')
+}
+
+const buildSessionUser = (profileData, fallbackUser = null) => {
+  const profileUser = profileData?.user || {}
+  const firstName = profileUser.first_name || ''
+  const lastName = profileUser.last_name || ''
+  const fullName = `${firstName} ${lastName}`.trim()
+  const resolvedUserId = profileUser.id ?? fallbackUser?.id ?? null
+  const localSettingsProfile = getStoredSettingsProfile(resolvedUserId)
+  const localAvatar = localSettingsProfile.avatar || ''
+  const resolvedProfile = profileData ?? fallbackUser?.profile ?? null
+
+  return {
+    id: resolvedUserId,
+    email: profileUser.email ?? fallbackUser?.email ?? '',
+    name: fullName || fallbackUser?.name || profileUser.username || '',
+    role: profileData?.role ?? fallbackUser?.role ?? 'student',
+    is_admin_role: (profileData?.role ?? fallbackUser?.role) === 'admin',
+    avatar: localAvatar || profileData?.avatar || fallbackUser?.avatar || '',
+    profile: resolvedProfile
+      ? {
+          ...resolvedProfile,
+          avatar: localAvatar || resolvedProfile.avatar || '',
+        }
+      : resolvedProfile,
+  }
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -121,15 +157,7 @@ export function AuthProvider({ children }) {
       const profileResponse = await api.get('/auth/me/')
       const profileData = profileResponse.data
 
-      const user = {
-        id: profileData.user.id,
-        email: profileData.user.email,
-        name: `${profileData.user.first_name} ${profileData.user.last_name}`,
-        role: profileData.role,
-        is_admin_role: profileData.role === 'admin',
-        avatar: profileData.avatar,
-        profile: profileData,
-      }
+      const user = buildSessionUser(profileData, state.user)
 
       setStoredSession(user)
       dispatch({ type: 'LOGIN', payload: { user } })
@@ -154,6 +182,13 @@ export function AuthProvider({ children }) {
     dispatch({ type: 'LOGOUT' })
   }
 
+  const updateProfileInSession = (profileData) => {
+    const currentSession = getStoredSession() || state.user
+    const user = buildSessionUser(profileData, currentSession)
+    setStoredSession(user)
+    dispatch({ type: 'LOGIN', payload: { user } })
+  }
+
   const forgotPassword = (/* email */) => {
     return Promise.resolve()
   }
@@ -170,6 +205,7 @@ export function AuthProvider({ children }) {
         login,
         logout,
         register,
+        updateProfileInSession,
         forgotPassword,
         resetPassword,
       }}

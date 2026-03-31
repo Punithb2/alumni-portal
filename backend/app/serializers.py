@@ -2,6 +2,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Q
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -11,7 +12,7 @@ from .models import (
     UserProfile, WorkExperience, Education, Job, JobApplication,
     HiringDrive, MentorProfile, MentoringSession, MentorGoal,
     MentoringRequest, Post, Comment, ForumCategory, ForumTopic,
-    ForumReply, Conversation, Message, Event, NewsArticle, Notification,
+    ForumReply, Conversation, Message, ConnectionRequest, Event, NewsArticle, Notification,
     Campaign, Donation, Club, ClubMembership, ClubJoinRequest, ClubPost, ClubMessage
 )
 
@@ -149,8 +150,13 @@ class EducationSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     # This nests the user email, work history, and education directly into the profile JSON
     user = UserBasicSerializer(read_only=True)
+    first_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    last_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    email = serializers.EmailField(write_only=True, required=False)
     work_experiences = WorkExperienceSerializer(many=True, read_only=True)
     education = EducationSerializer(many=True, read_only=True)
+    connection_status = serializers.SerializerMethodField()
+    connection_request_id = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
@@ -158,7 +164,69 @@ class UserProfileSerializer(serializers.ModelSerializer):
                   'department', 'graduation_year', 'current_company', 'current_position',
                   'linkedin_url', 'github_url', 'website', 'phone', 'student_id', 
                   'skills', 'willing_to_mentor', 'willing_to_hire', 'visibility',
-                  'work_experiences', 'education']
+                  'work_experiences', 'education', 'connection_status', 'connection_request_id',
+                  'first_name', 'last_name', 'email']
+
+    def update(self, instance, validated_data):
+        first_name = validated_data.pop('first_name', None)
+        last_name = validated_data.pop('last_name', None)
+        email = validated_data.pop('email', None)
+
+        user = instance.user
+        user_update_fields = []
+
+        if first_name is not None:
+            user.first_name = first_name.strip()
+            user_update_fields.append('first_name')
+        if last_name is not None:
+            user.last_name = last_name.strip()
+            user_update_fields.append('last_name')
+        if email is not None:
+            normalized_email = email.strip().lower()
+            if User.objects.exclude(id=user.id).filter(email__iexact=normalized_email).exists():
+                raise serializers.ValidationError({'email': ['This email is already registered.']})
+            user.email = normalized_email
+            user_update_fields.append('email')
+
+        if user_update_fields:
+            user.save(update_fields=user_update_fields)
+
+        return super().update(instance, validated_data)
+
+    def _get_relationship(self, obj):
+        request = self.context.get('request')
+        current_user = getattr(request, 'user', None)
+        if not current_user or not current_user.is_authenticated or obj.user_id == current_user.id:
+            return None
+        return ConnectionRequest.objects.filter(
+            Q(requester=current_user, recipient=obj.user) |
+            Q(requester=obj.user, recipient=current_user)
+        ).order_by('-created_at').first()
+
+    def get_connection_status(self, obj):
+        request = self.context.get('request')
+        current_user = getattr(request, 'user', None)
+        if not current_user or not current_user.is_authenticated:
+            return 'none'
+        if obj.user_id == current_user.id:
+            return 'self'
+
+        rel = self._get_relationship(obj)
+        if not rel:
+            return 'none'
+        if rel.status == 'accepted':
+            return 'connected'
+        if rel.status == 'pending':
+            if rel.requester_id == current_user.id:
+                return 'outgoing_pending'
+            return 'incoming_pending'
+        return 'none'
+
+    def get_connection_request_id(self, obj):
+        rel = self._get_relationship(obj)
+        if rel and rel.status == 'pending':
+            return rel.id
+        return None
 
 # ==========================================
 # 2. JOB BOARD & CAREERS
@@ -330,9 +398,30 @@ class EventSerializer(serializers.ModelSerializer):
         return False
 
 class NotificationSerializer(serializers.ModelSerializer):
+    can_respond = serializers.SerializerMethodField()
+    connection_request_status = serializers.SerializerMethodField()
+
     class Meta:
         model = Notification
         fields = '__all__'
+
+    def _get_connection_request(self, obj):
+        if obj.notification_type != 'connection_request':
+            return None
+        req_id = (obj.metadata or {}).get('connection_request_id')
+        if not req_id:
+            return None
+        return ConnectionRequest.objects.filter(id=req_id).first()
+
+    def get_can_respond(self, obj):
+        req = self._get_connection_request(obj)
+        request = self.context.get('request')
+        current_user = getattr(request, 'user', None)
+        return bool(req and current_user and req.recipient_id == current_user.id and req.status == 'pending')
+
+    def get_connection_request_status(self, obj):
+        req = self._get_connection_request(obj)
+        return req.status if req else None
 
 class NewsArticleSerializer(serializers.ModelSerializer):
     class Meta:

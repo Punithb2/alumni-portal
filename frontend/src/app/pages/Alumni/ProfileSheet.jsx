@@ -29,10 +29,19 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { getAvatarDataUrl } from '../../utils/avatar'
+import api from '../../utils/api'
+import {
+  getProfileEmail,
+  getProfileFirstName,
+  getProfileFullName,
+} from '../../utils/profileIdentity'
 
 export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'Alumni' }) {
   const [activeTab, setActiveTab] = useState('Posts')
   const [actionMessage, setActionMessage] = useState('')
+  const [connectionStatus, setConnectionStatus] = useState('none')
+  const [posts, setPosts] = useState([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -47,21 +56,63 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
     }
   }, [isOpen])
 
+  useEffect(() => {
+    setConnectionStatus(profile?.connection_status || 'none')
+  }, [profile?.connection_status])
+
+  useEffect(() => {
+    const authorId = profile?.user?.id
+    if (!isOpen || !authorId) {
+      setPosts([])
+      return
+    }
+
+    let mounted = true
+    const loadPosts = async () => {
+      setLoadingPosts(true)
+      try {
+        const res = await api.get('/posts/')
+        const data = res.data?.results ?? res.data
+        const allPosts = Array.isArray(data) ? data : []
+        const authorPosts = allPosts.filter((post) => String(post.author) === String(authorId))
+        if (mounted) setPosts(authorPosts)
+      } catch (error) {
+        console.error('Failed to load profile posts', error)
+        if (mounted) setPosts([])
+      } finally {
+        if (mounted) setLoadingPosts(false)
+      }
+    }
+
+    loadPosts()
+    return () => {
+      mounted = false
+    }
+  }, [isOpen, profile?.user?.id])
+
   if (!profile) return null
 
   const tabs = ['Posts', 'About', 'Education', 'Experience']
 
-  const fullName = `${profile.first_name} ${profile.last_name}`
+  const firstName = getProfileFirstName(profile)
+  const fullName = getProfileFullName(profile)
+  const email = getProfileEmail(profile)
+  const formatPostTime = (timestamp) => {
+    if (!timestamp) return ''
+    const d = new Date(timestamp)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleDateString()
+  }
 
   const handleMessageClick = () => {
     // Check if connected (mock logic based on typical structures, change fields as needed)
-    const isConnected = profile.connection_status === 'connected' || profile.isConnected === true
+    const isConnected = connectionStatus === 'connected' || profile.isConnected === true
 
     if (isConnected) {
       onClose()
       navigate(`/chat`) // Assume /chat takes care of the latest user via state or we can pass state if required
     } else {
-      setActionMessage(`${profile.first_name} has not accepted your connection request yet.`)
+      setActionMessage(`${firstName || 'This user'} has not accepted your connection request yet.`)
     }
   }
 
@@ -106,7 +157,7 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
             <div className="relative -mt-12 sm:-mt-16 mb-4 flex justify-between items-end">
               <div className="p-1 bg-white rounded-full inline-block shadow-md relative z-10">
                 <img
-                  src={profile.avatar || getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)}
+                  src={profile.avatar || getAvatarDataUrl(fullName)}
                   alt={fullName}
                   className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-white"
                 />
@@ -119,19 +170,69 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
               </div>
 
               <div className="flex items-center gap-2 pb-1 z-10">
-                <button
-                  onClick={() =>
-                    setActionMessage(
-                      `${viewerRole === 'Student' ? 'Mentorship request' : 'Connection request'} sent to ${profile.first_name}.`
-                    )
-                  }
-                  className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-600 text-white font-semibold text-[13px] sm:text-[14px] rounded-full hover:bg-indigo-700 transition-colors shadow-sm focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
-                >
-                  <UserPlus size={16} />
-                  <span className="hidden sm:inline">
-                    {viewerRole === 'Student' ? 'Request Mentor' : 'Connect'}
-                  </span>
-                </button>
+                {connectionStatus === 'incoming_pending' ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.post(`/profiles/${profile.id}/accept_connection_request/`)
+                          setConnectionStatus('connected')
+                          setActionMessage(`You are now connected with ${firstName || 'this user'}.`)
+                        } catch (error) {
+                          console.error('Failed to accept connection request', error)
+                          setActionMessage('Unable to accept request right now. Please try again.')
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-600 text-white font-semibold text-[13px] sm:text-[14px] rounded-full hover:bg-emerald-700 transition-colors shadow-sm focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500"
+                    >
+                      <span className="hidden sm:inline">Accept</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.post(`/profiles/${profile.id}/reject_connection_request/`)
+                          setConnectionStatus('none')
+                          setActionMessage(`Connection request from ${firstName || 'this user'} rejected.`)
+                        } catch (error) {
+                          console.error('Failed to reject connection request', error)
+                          setActionMessage('Unable to reject request right now. Please try again.')
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-rose-50 text-rose-700 font-semibold text-[13px] sm:text-[14px] rounded-full hover:bg-rose-100 transition-colors shadow-sm focus:ring-2 focus:ring-offset-1 focus:ring-rose-300"
+                    >
+                      <span className="hidden sm:inline">Reject</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (connectionStatus !== 'none') return
+                      try {
+                        await api.post(`/profiles/${profile.id}/send_connection_request/`)
+                        setConnectionStatus('outgoing_pending')
+                        setActionMessage(
+                          `${viewerRole === 'Student' ? 'Mentorship request' : 'Connection request'} sent to ${firstName || 'this user'}.`
+                        )
+                      } catch (error) {
+                        console.error('Failed to send connection request', error)
+                        setActionMessage('Unable to send request right now. Please try again.')
+                      }
+                    }}
+                    disabled={connectionStatus === 'outgoing_pending' || connectionStatus === 'connected'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-600 disabled:bg-slate-200 disabled:text-slate-600 text-white font-semibold text-[13px] sm:text-[14px] rounded-full hover:bg-indigo-700 transition-colors shadow-sm focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
+                  >
+                    <UserPlus size={16} />
+                    <span className="hidden sm:inline">
+                      {connectionStatus === 'connected'
+                        ? 'Connected'
+                        : connectionStatus === 'outgoing_pending'
+                          ? 'Request Sent'
+                          : viewerRole === 'Student'
+                            ? 'Request Mentor'
+                            : 'Connect'}
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={handleMessageClick}
                   className="p-1.5 sm:p-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-full hover:bg-slate-50 transition-colors shadow-sm focus:ring-2 focus:ring-offset-1 focus:ring-slate-300"
@@ -192,7 +293,7 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
               <div className="flex items-center gap-3">
                 <Mail size={18} className="text-slate-400 shrink-0" />
                 <span className="truncate">
-                  {profile.email || `${profile.first_name?.toLowerCase()}@gmail.com`}
+                  {email || `${(firstName || 'user').toLowerCase()}@gmail.com`}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -224,116 +325,70 @@ export default function ProfileSheet({ profile, isOpen, onClose, viewerRole = 'A
             <div className="mt-6 mb-8 min-h-[250px]">
               {activeTab === 'Posts' && (
                 <div className="flex flex-col gap-4">
-                  {/* Post 1 */}
-                  <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between mb-4 text-left">
-                      <div className="flex items-center gap-3">
-                          <img
-                            src={
-                              profile.avatar ||
-                              getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)
-                            }
-                            alt=""
-                            className="w-10 h-10 rounded-full border border-slate-100"
-                          />
-                        <div>
-                          <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-none">
-                            {fullName}
-                          </p>
-                          <p className="text-[12px] sm:text-[13px] text-slate-500 mt-1">
-                            2 days ago
-                          </p>
+                  {loadingPosts ? (
+                    <div className="bg-white border border-slate-100 rounded-xl p-6 text-sm text-slate-500 text-center">
+                      Loading posts...
+                    </div>
+                  ) : posts.length === 0 ? (
+                    <div className="bg-white border border-slate-100 rounded-xl p-6 text-sm text-slate-500 text-center">
+                      No posts yet.
+                    </div>
+                  ) : (
+                    posts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center justify-between mb-4 text-left">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={post.author_avatar || profile.avatar || getAvatarDataUrl(fullName)}
+                              alt=""
+                              className="w-10 h-10 rounded-full border border-slate-100"
+                            />
+                            <div>
+                              <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-none">
+                                {post.author_name || fullName}
+                              </p>
+                              <p className="text-[12px] sm:text-[13px] text-slate-500 mt-1">
+                                {formatPostTime(post.created_at)}
+                              </p>
+                            </div>
+                          </div>
+                          <button className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
+                            <MoreHorizontal size={18} />
+                          </button>
+                        </div>
+                        <p className="text-[14px] sm:text-[15px] text-slate-700 leading-relaxed mb-4 text-left">
+                          {post.content}
+                        </p>
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-slate-500">
+                          <button className="flex items-center gap-1.5">
+                            <Heart size={18} />
+                            <span className="text-[13px] font-medium">
+                              {post.reaction_counts?.like || 0}
+                            </span>
+                          </button>
+                          <button className="flex items-center gap-1.5">
+                            <MessageCircle size={18} />
+                            <span className="text-[13px] font-medium">{post.comment_count || 0}</span>
+                          </button>
+                          <button className="flex items-center gap-1.5">
+                            <Share2 size={18} />
+                            <span className="text-[13px] font-medium">Share</span>
+                          </button>
+                          <button className="flex items-center gap-1.5">
+                            <Bookmark size={18} />
+                          </button>
                         </div>
                       </div>
-                      <button className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
-                        <MoreHorizontal size={18} />
-                      </button>
-                    </div>
-                    <p className="text-[14px] sm:text-[15px] text-slate-700 leading-relaxed mb-4 text-left">
-                      Sense child do state to defer mr of forty. Become latter but nor abroad wisdom
-                      waited. Was delivered gentleman acuteness but daughters. In as of whole as
-                      match asked.
-                    </p>
-                    <div className="w-full h-48 sm:h-52 bg-slate-100 rounded-xl overflow-hidden shadow-inner mb-4">
-                      <img
-                        src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop"
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500 cursor-pointer"
-                        alt="Post architecture"
-                      />
-                    </div>
-                    {/* Interactions */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-slate-500">
-                      <button className="flex items-center gap-1.5 hover:text-rose-500 transition-colors group">
-                        <Heart size={18} className="group-hover:fill-rose-100" />
-                        <span className="text-[13px] font-medium">24</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 hover:text-blue-500 transition-colors group">
-                        <MessageCircle size={18} className="group-hover:fill-blue-50" />
-                        <span className="text-[13px] font-medium">5</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors">
-                        <Share2 size={18} />
-                        <span className="text-[13px] font-medium">Share</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 hover:text-amber-500 transition-colors group">
-                        <Bookmark size={18} className="group-hover:fill-amber-100" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Post 2 */}
-                  <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between mb-4 text-left">
-                      <div className="flex items-center gap-3">
-                          <img
-                            src={
-                              profile.avatar ||
-                              getAvatarDataUrl(`${profile.first_name} ${profile.last_name}`)
-                            }
-                            alt=""
-                            className="w-10 h-10 rounded-full border border-slate-100"
-                          />
-                        <div>
-                          <p className="text-[14px] sm:text-[15px] font-bold text-slate-900 leading-none">
-                            {fullName}
-                          </p>
-                          <p className="text-[12px] sm:text-[13px] text-slate-500 mt-1">
-                            1 week ago
-                          </p>
-                        </div>
-                      </div>
-                      <button className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
-                        <MoreHorizontal size={18} />
-                      </button>
-                    </div>
-                    <p className="text-[14px] sm:text-[15px] text-slate-700 leading-relaxed mb-4 text-left">
-                      Just finished a great project using React and Tailwind CSS. The developer
-                      experience is absolutely unmatched. Anyone else enjoying this stack?
-                    </p>
-                    {/* Interactions */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-slate-500">
-                      <button className="flex items-center gap-1.5 hover:text-rose-500 transition-colors group">
-                        <Heart size={18} className="group-hover:fill-rose-100" />
-                        <span className="text-[13px] font-medium">112</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 hover:text-blue-500 transition-colors group">
-                        <MessageCircle size={18} className="group-hover:fill-blue-50" />
-                        <span className="text-[13px] font-medium">14</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors">
-                        <Share2 size={18} />
-                        <span className="text-[13px] font-medium">Share</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 hover:text-amber-500 transition-colors group">
-                        <Bookmark size={18} className="group-hover:fill-amber-100" />
-                      </button>
-                    </div>
-                  </div>
+                    ))
+                  )}
                 </div>
               )}
               {activeTab === 'About' && (
                 <div className="text-[14px] sm:text-[15px] text-slate-600 bg-slate-50/80 p-5 rounded-xl border border-slate-100/60 shadow-sm">
-                  <p className="font-bold text-slate-900 mb-2">About {profile.first_name}</p>
+                  <p className="font-bold text-slate-900 mb-2">About {firstName || 'this user'}</p>
                   <p className="leading-relaxed">
                     {profile.about ||
                       profile.bio ||

@@ -244,6 +244,32 @@ class Message(models.Model):
     sent_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
 
+class ConnectionRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+    ]
+
+    requester = models.ForeignKey(User, on_delete=models.CASCADE, related_name='connection_requests_sent')
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='connection_requests_received')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['requester', 'recipient'],
+                condition=models.Q(status='pending'),
+                name='uniq_pending_connection_request',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['recipient', 'status']),
+            models.Index(fields=['requester', 'status']),
+        ]
+
 
 # ==========================================
 # 7. NOTIFICATIONS & EVENTS/NEWS
@@ -271,6 +297,7 @@ class Notification(models.Model):
     title = models.CharField(max_length=255)
     message = models.TextField()
     notification_type = models.CharField(max_length=50) # mentorship_request, job_update, etc.
+    metadata = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=20, default='unread')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -326,8 +353,8 @@ class Campaign(models.Model):
 
     class Meta:
         constraints = [
-            models.CheckConstraint(check=models.Q(raised__gte=0), name='campaign_raised_non_negative'),
-            models.CheckConstraint(check=models.Q(donor_count__gte=0), name='campaign_donor_count_non_negative'),
+            models.CheckConstraint(condition=models.Q(raised__gte=0), name='campaign_raised_non_negative'),
+            models.CheckConstraint(condition=models.Q(donor_count__gte=0), name='campaign_donor_count_non_negative'),
         ]
         indexes = [
             models.Index(fields=['status', 'campaign_type']),
@@ -363,7 +390,7 @@ class Donation(models.Model):
 
     class Meta:
         constraints = [
-            models.CheckConstraint(check=models.Q(amount__gt=0), name='donation_amount_gt_zero'),
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='donation_amount_gt_zero'),
         ]
         indexes = [
             models.Index(fields=['campaign', 'status']),
@@ -388,6 +415,11 @@ class Club(models.Model):
         ('professional', 'Professional'),
         ('other', 'Other'),
     ]
+    TYPE_CHOICES = [
+        ('Interest Group', 'Interest Group'),
+        ('Chapter', 'Chapter'),
+        ('Cohort', 'Cohort'),
+    ]
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('pending', 'Pending Approval'),
@@ -398,6 +430,7 @@ class Club(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other')
+    type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='Interest Group')
     is_private = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     cover_image = models.URLField(blank=True, null=True)

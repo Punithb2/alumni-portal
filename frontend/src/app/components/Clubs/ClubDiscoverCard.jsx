@@ -63,7 +63,7 @@ const ClubDiscoverCard = ({ group, onView, isJoined, isPending, onJoin, onCancel
           alt={group.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-t from-slate-900/70 to-transparent" />
 
         {/* Privacy Badge */}
         <div className="absolute top-3 right-3">
@@ -137,7 +137,7 @@ const ClubDiscoverCard = ({ group, onView, isJoined, isPending, onJoin, onCancel
               ))}
             </div>
             <span className="text-xs font-bold text-slate-500 whitespace-nowrap">
-              <span className="text-slate-900">{group.membersCount.toLocaleString()}</span> members
+              <span className="text-slate-900">{(group.membersCount || group.members_count || 0).toLocaleString()}</span> members
             </span>
           </div>
           <button

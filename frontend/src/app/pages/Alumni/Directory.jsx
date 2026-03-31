@@ -20,8 +20,12 @@ import {
 import DirectoryMap from '../../components/DirectoryMap'
 import ProfileSheet from './ProfileSheet'
 import { getAvatarDataUrl } from '../../utils/avatar'
+import { normalizeProfileIdentity } from '../../utils/profileIdentity'
+import useAuth from '../../hooks/useAuth'
 
 export default function AlumniDirectory() {
+  const { user } = useAuth()
+  const currentUserId = user?.id
   const [viewMode, setViewMode] = useState('grid') // 'grid', 'list', 'map'
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState({
@@ -42,13 +46,55 @@ export default function AlumniDirectory() {
   const [actionMessage, setActionMessage] = useState('')
   const ITEMS_PER_PAGE = 24
 
+  const updateConnectionState = (profileId, nextStatus) => {
+    setBackendProfiles((prev) =>
+      prev.map((p) => (String(p.id) === String(profileId) ? { ...p, connection_status: nextStatus } : p))
+    )
+    setSelectedProfile((prev) =>
+      prev && String(prev.id) === String(profileId) ? { ...prev, connection_status: nextStatus } : prev
+    )
+  }
+
+  const sendConnectionRequest = async (profile) => {
+    try {
+      await api.post(`/profiles/${profile.id}/send_connection_request/`)
+      setActionMessage(`Connection request sent to ${profile.first_name} ${profile.last_name}.`)
+      updateConnectionState(profile.id, 'outgoing_pending')
+    } catch (error) {
+      console.error('Failed to send connection request', error)
+      setActionMessage('Unable to send connection request right now. Please try again.')
+    }
+  }
+
+  const acceptConnectionRequest = async (profile) => {
+    try {
+      await api.post(`/profiles/${profile.id}/accept_connection_request/`)
+      setActionMessage(`You are now connected with ${profile.first_name} ${profile.last_name}.`)
+      updateConnectionState(profile.id, 'connected')
+    } catch (error) {
+      console.error('Failed to accept connection request', error)
+      setActionMessage('Unable to accept request right now. Please try again.')
+    }
+  }
+
+  const rejectConnectionRequest = async (profile) => {
+    try {
+      await api.post(`/profiles/${profile.id}/reject_connection_request/`)
+      setActionMessage(`Connection request from ${profile.first_name} ${profile.last_name} rejected.`)
+      updateConnectionState(profile.id, 'none')
+    } catch (error) {
+      console.error('Failed to reject connection request', error)
+      setActionMessage('Unable to reject request right now. Please try again.')
+    }
+  }
+
   // Fetch Profiles from Backend
   useEffect(() => {
     const fetchProfiles = async () => {
       try {
         const response = await api.get('/profiles/')
         const profilesData = response.data.results || response.data
-        setBackendProfiles(profilesData)
+        setBackendProfiles((Array.isArray(profilesData) ? profilesData : []).map(normalizeProfileIdentity))
       } catch (error) {
         console.error('Failed to fetch profiles', error)
       } finally {
@@ -75,6 +121,10 @@ export default function AlumniDirectory() {
 
   const filteredProfiles = useMemo(() => {
     let result = [...backendProfiles]
+
+    if (currentUserId) {
+      result = result.filter((p) => String(p.user?.id) !== String(currentUserId))
+    }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
@@ -149,7 +199,7 @@ export default function AlumniDirectory() {
     })
 
     return result
-  }, [filters, sortOption, searchQuery, willingToMentor, backendProfiles])
+  }, [filters, sortOption, searchQuery, willingToMentor, backendProfiles, currentUserId])
 
   const paginatedProfiles = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
@@ -266,18 +316,48 @@ export default function AlumniDirectory() {
                       </div>
                       {/* Action buttons on card */}
                       <div className="px-5 pb-5 pt-2 flex items-center justify-center gap-2 mt-auto">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setActionMessage(
-                              `Connection request sent to ${profile.first_name} ${profile.last_name}.`
-                            )
-                          }}
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
-                        >
-                          <UserPlus className="w-4 h-4" />
-                          Connect
-                        </button>
+                        {profile.connection_status === 'incoming_pending' ? (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                acceptConnectionRequest(profile)
+                              }}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                rejectConnectionRequest(profile)
+                              }}
+                              className="px-3 py-2 bg-white border border-rose-200 hover:bg-rose-50 text-rose-700 text-sm font-medium rounded-xl transition-colors"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (profile.connection_status === 'none') sendConnectionRequest(profile)
+                            }}
+                            disabled={
+                              profile.connection_status === 'outgoing_pending' ||
+                              profile.connection_status === 'connected' ||
+                              profile.connection_status === 'self'
+                            }
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-600 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            {profile.connection_status === 'connected'
+                              ? 'Connected'
+                              : profile.connection_status === 'outgoing_pending'
+                                ? 'Request Sent'
+                                : 'Connect'}
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -393,19 +473,49 @@ export default function AlumniDirectory() {
                             >
                               Profile
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setActionMessage(
-                                  `Connection request sent to ${profile.first_name} ${profile.last_name}.`
-                                )
-                              }}
-                              className="px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm font-medium flex items-center gap-1.5"
-                              title="Connect"
-                            >
-                              <UserPlus className="w-3.5 h-3.5" />
-                              Connect
-                            </button>
+                            {profile.connection_status === 'incoming_pending' ? (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    acceptConnectionRequest(profile)
+                                  }}
+                                  className="px-3 py-1.5 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm font-medium"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    rejectConnectionRequest(profile)
+                                  }}
+                                  className="px-3 py-1.5 text-sm text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors shadow-sm font-medium"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (profile.connection_status === 'none') sendConnectionRequest(profile)
+                                }}
+                                disabled={
+                                  profile.connection_status === 'outgoing_pending' ||
+                                  profile.connection_status === 'connected' ||
+                                  profile.connection_status === 'self'
+                                }
+                                className="px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-600 rounded-lg transition-colors shadow-sm font-medium flex items-center gap-1.5"
+                                title="Connect"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                {profile.connection_status === 'connected'
+                                  ? 'Connected'
+                                  : profile.connection_status === 'outgoing_pending'
+                                    ? 'Request Sent'
+                                    : 'Connect'}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

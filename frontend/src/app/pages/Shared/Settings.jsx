@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { Eye, EyeOff, Check, Database, AlertTriangle, Paperclip } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
 import { getAvatarDataUrl } from '../../utils/avatar'
+import api from '../../utils/api'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 const Toggle = ({ checked, onChange }) => (
@@ -184,7 +185,8 @@ const ROLE_NAV = {
   ],
   Student: [
     { id: 'profile', label: 'Account' },
-    { id: 'academic', label: 'Academic' },
+    { id: 'professional', label: 'Professional' },
+    { id: 'mentorship', label: 'Mentorship' },
     { id: 'notifications', label: 'Notifications' },
     { id: 'privacy', label: 'Privacy' },
     { id: 'security', label: 'Security' },
@@ -214,16 +216,30 @@ const ROLE_BADGE = {
   SA: { bg: 'bg-rose-50', text: 'text-rose-700', ring: 'ring-rose-600/20' },
 }
 
+const normalizeSettingsRole = (rawRole) => {
+  const role = String(rawRole || '').toLowerCase()
+  if (role === 'student') return 'Student'
+  if (role === 'alumni') return 'Alumni'
+  if (role === 'admin' || role === 'university') return 'Admin'
+  if (role === 'sa' || role === 'super_admin') return 'SA'
+  return 'Alumni'
+}
+
+const SUPPLEMENTAL_PROFILE_FIELDS = ['industry', 'degree', 'timezone', 'program', 'currentYear', 'advisor', 'cgpa']
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Settings Component
 // ═══════════════════════════════════════════════════════════════════════════════
 const Settings = () => {
-  const { user } = useAuth()
-  const role = user?.role || 'Alumni'
-  const currentUser = user || {
-    name: 'Alumni User',
-    avatar: getAvatarDataUrl('Alumni User'),
-    email: 'user@alumni.edu',
+  const { user, updateProfileInSession } = useAuth()
+  const role = normalizeSettingsRole(user?.role)
+  const backendProfile = user?.profile || {}
+  const backendUser = backendProfile.user || {}
+  const nameFromBackend = `${backendUser.first_name || ''} ${backendUser.last_name || ''}`.trim()
+  const currentUser = {
+    name: nameFromBackend || user?.name || '',
+    avatar: backendProfile.avatar || user?.avatar || '',
+    email: backendUser.email || user?.email || '',
   }
 
   const navItems = ROLE_NAV[role] || ROLE_NAV.Alumni
@@ -233,7 +249,7 @@ const Settings = () => {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [avatarUrl, setAvatarUrl] = useState(
-    currentUser.avatar || getAvatarDataUrl(currentUser.name || 'Alumni User')
+    currentUser.avatar || getAvatarDataUrl(currentUser.name || 'User')
   )
   const fileInputRef = useRef(null)
 
@@ -242,29 +258,52 @@ const Settings = () => {
     setTimeout(() => setSavedSection(null), 2500)
   }
 
+  const localProfileKey = user?.id ? `settings_profile_${user.id}` : null
+  const getLocalProfile = () => {
+    if (!localProfileKey) return {}
+    try {
+      const raw = localStorage.getItem(localProfileKey)
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  }
+  const saveLocalProfile = (value) => {
+    if (!localProfileKey) return
+    const supplementalOnly = SUPPLEMENTAL_PROFILE_FIELDS.reduce((acc, key) => {
+      acc[key] = value[key] ?? ''
+      return acc
+    }, {})
+    supplementalOnly.avatar = value.avatar ?? ''
+    localStorage.setItem(localProfileKey, JSON.stringify(supplementalOnly))
+  }
+
   // ── Profile state ─────────────────────────────────────────────────────────
   const [profile, setProfile] = useState({
-    name: currentUser.name || 'Alumni User',
-    email: currentUser.email || 'user@alumni.edu',
-    phone: '+1 (555) 000-0000',
-    location: 'San Francisco, CA',
-    bio: 'Passionate professional and proud alumnus.',
-    headline: 'Senior Software Engineer',
-    company: 'TechCorp Inc.',
-    linkedin: 'linkedin.com/in/username',
-    industry: 'Information Technology',
-    graduationYear: '2018',
-    department: 'Computer Science',
-    degree: 'B.Sc. Computer Science',
-    timezone: 'Pacific Standard Time',
-    program: 'B.Tech Computer Science',
-    studentId: 'STU-2024-0042',
-    currentYear: '3rd Year',
-    advisor: 'Prof. James Mitchell',
-    cgpa: '3.7',
-    adminRole: role === 'SA' ? 'Super Admin' : 'Portal Admin',
-    instituteEmail: currentUser.email || 'admin@institution.edu',
-    department_admin: 'IT & Alumni Relations',
+    ...{
+      name: currentUser.name || '',
+      email: currentUser.email || '',
+      phone: backendProfile.phone || '',
+      location: [backendProfile.city, backendProfile.country].filter(Boolean).join(', '),
+      bio: backendProfile.bio || '',
+      headline: backendProfile.headline || '',
+      company: backendProfile.current_company || '',
+      linkedin: backendProfile.linkedin_url || '',
+      industry: '',
+      graduationYear: backendProfile.graduation_year ? String(backendProfile.graduation_year) : '',
+      department: backendProfile.department || '',
+      degree: '',
+      timezone: '',
+      program: '',
+      studentId: backendProfile.student_id || '',
+      currentYear: '',
+      advisor: '',
+      cgpa: '',
+      adminRole: role === 'SA' ? 'Super Admin' : 'Portal Admin',
+      instituteEmail: currentUser.email || '',
+      department_admin: backendProfile.department || '',
+    },
+    ...getLocalProfile(),
   })
   const sp = (field) => (e) => setProfile((p) => ({ ...p, [field]: e.target.value }))
 
@@ -320,8 +359,10 @@ const Settings = () => {
   // ── Professional state ────────────────────────────────────────────────────
   const [pro, setPro] = useState({
     openToJobs: false,
-    showCompany: true,
-    skills: 'React, Node.js, Python, SQL',
+    showCompany: Boolean(backendProfile.current_company),
+    skills: Array.isArray(backendProfile.skills)
+      ? backendProfile.skills.join(', ')
+      : (backendProfile.skills ?? ''),
   })
 
   // ── Mentorship state ──────────────────────────────────────────────────────
@@ -350,8 +391,82 @@ const Settings = () => {
       setUploadError('File size must be under 1 MB.')
       return
     }
-    setUploadError('')
-    setAvatarUrl(URL.createObjectURL(file))
+    const reader = new FileReader()
+    reader.onload = () => {
+      const nextAvatar = typeof reader.result === 'string' ? reader.result : ''
+      if (!nextAvatar) {
+        setUploadError('Unable to read that image. Please try another file.')
+        return
+      }
+      setUploadError('')
+      setAvatarUrl(nextAvatar)
+      saveLocalProfile({ ...profile, avatar: nextAvatar })
+      updateProfileInSession?.({ ...backendProfile, avatar: nextAvatar })
+    }
+    reader.onerror = () => {
+      setUploadError('Unable to read that image. Please try another file.')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const persistProfileChanges = async (saveKey) => {
+    if (!backendProfile.id) return
+
+    const locationParts = String(profile.location || '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    const city = locationParts[0] || ''
+    const country = locationParts.slice(1).join(', ')
+
+    const nameParts = String(profile.name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ')
+
+    const parsedGradYear = Number.parseInt(profile.graduationYear, 10)
+
+    const payload = {
+      first_name: firstName,
+      last_name: lastName,
+      email: String(profile.email || '').trim(),
+      phone: String(profile.phone || '').trim(),
+      city,
+      country,
+      bio: String(profile.bio || '').trim(),
+      headline: String(profile.headline || '').trim(),
+      current_company: String(profile.company || '').trim(),
+      linkedin_url: String(profile.linkedin || '').trim(),
+      department: String(profile.department || '').trim(),
+      graduation_year: Number.isNaN(parsedGradYear) ? null : parsedGradYear,
+      student_id: String(profile.studentId || '').trim(),
+      skills: String(pro.skills || '')
+        .split(',')
+        .map((skill) => skill.trim())
+        .filter(Boolean),
+      willing_to_hire: Boolean(pro.openToJobs),
+    }
+
+    const localAvatarValue = avatarUrl || ''
+    const shouldPersistAvatarRemotely =
+      localAvatarValue.startsWith('http://') || localAvatarValue.startsWith('https://')
+
+    if (shouldPersistAvatarRemotely) {
+      payload.avatar = localAvatarValue
+    }
+
+    await api.patch(`/profiles/${backendProfile.id}/`, payload)
+    const refreshed = await api.get('/auth/me/')
+    const nextProfileForSession = {
+      ...refreshed.data,
+      avatar: shouldPersistAvatarRemotely ? refreshed.data?.avatar || localAvatarValue : localAvatarValue,
+    }
+
+    updateProfileInSession?.(nextProfileForSession)
+    saveLocalProfile({ ...profile, avatar: localAvatarValue })
+    flashSave(saveKey)
   }
 
   // ── Avatar block (shared) ─────────────────────────────────────────────────
@@ -386,6 +501,7 @@ const Settings = () => {
   )
 
   const TIMEZONES = [
+    { value: '', label: 'Select timezone' },
     'Pacific Standard Time',
     'Mountain Standard Time',
     'Central Standard Time',
@@ -403,7 +519,7 @@ const Settings = () => {
         noBorder
         title="Personal Information"
         description="Use a permanent address where you can receive mail."
-        onSave={() => flashSave('profile')}
+        onSave={() => persistProfileChanges('profile')}
       >
         <AvatarBlock />
         {savedSection === 'profile' && <SavedBadge />}
@@ -447,7 +563,7 @@ const Settings = () => {
       <FormSection
         title="Professional Details"
         description="Your career information visible on your alumni profile."
-        onSave={() => flashSave('professional_profile')}
+        onSave={() => persistProfileChanges('professional_profile')}
       >
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field
@@ -488,32 +604,10 @@ const Settings = () => {
       </FormSection>
 
       <FormSection title="Documents" description="Your uploaded resumes and cover letters.">
-        <ul role="list" className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-          {[
-            { name: 'resume_alumni.pdf', size: '2.4 MB' },
-            { name: 'cover_letter.pdf', size: '1.1 MB' },
-          ].map((f) => (
-            <li key={f.name} className="flex items-center justify-between py-3.5 pr-4 pl-4 text-sm">
-              <div className="flex items-center gap-3">
-                <Paperclip className="h-4 w-4 text-gray-400" />
-                <span className="font-medium text-gray-900">{f.name}</span>
-                <span className="text-gray-400">{f.size}</span>
-              </div>
-              <a
-                href="#"
-                className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
-              >
-                Download
-              </a>
-            </li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          className="text-sm font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
-        >
-          + Upload new document
-        </button>
+        <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center">
+          <Paperclip className="h-4 w-4 text-gray-400 mx-auto mb-2" />
+          <p className="text-sm text-gray-600">No documents uploaded yet.</p>
+        </div>
       </FormSection>
     </div>
   )
@@ -524,7 +618,7 @@ const Settings = () => {
         noBorder
         title="Personal Information"
         description="Your details visible to alumni mentors and platform staff."
-        onSave={() => flashSave('profile')}
+        onSave={() => persistProfileChanges('profile')}
       >
         <AvatarBlock />
         {savedSection === 'profile' && <SavedBadge />}
@@ -555,7 +649,7 @@ const Settings = () => {
       <FormSection
         title="Academic Information"
         description="Your current academic details shown on your profile."
-        onSave={() => flashSave('academic_profile')}
+        onSave={() => persistProfileChanges('academic_profile')}
       >
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field
@@ -596,26 +690,10 @@ const Settings = () => {
       </FormSection>
 
       <FormSection title="Documents" description="Your uploaded academic documents.">
-        <ul role="list" className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-          {[
-            { name: 'academic_transcript.pdf', size: '1.8 MB' },
-            { name: 'student_id_card.pdf', size: '0.4 MB' },
-          ].map((f) => (
-            <li key={f.name} className="flex items-center justify-between py-3.5 pr-4 pl-4 text-sm">
-              <div className="flex items-center gap-3">
-                <Paperclip className="h-4 w-4 text-gray-400" />
-                <span className="font-medium text-gray-900">{f.name}</span>
-                <span className="text-gray-400">{f.size}</span>
-              </div>
-              <a
-                href="#"
-                className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
-              >
-                Download
-              </a>
-            </li>
-          ))}
-        </ul>
+        <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center">
+          <Paperclip className="h-4 w-4 text-gray-400 mx-auto mb-2" />
+          <p className="text-sm text-gray-600">No documents uploaded yet.</p>
+        </div>
       </FormSection>
     </div>
   )
@@ -630,7 +708,7 @@ const Settings = () => {
             ? 'Your top-level administrator account details.'
             : 'Your administrator account. Contact a Super Admin to change your role.'
         }
-        onSave={() => flashSave('profile')}
+        onSave={() => persistProfileChanges('profile')}
       >
         <AvatarBlock />
         {savedSection === 'profile' && <SavedBadge />}
@@ -660,7 +738,7 @@ const Settings = () => {
 
   const renderProfile = () => {
     if (role === 'Student') return renderProfileStudent()
-    if (role === 'University' || role === 'SA') return renderProfileAdmin()
+    if (role === 'Admin' || role === 'SA') return renderProfileAdmin()
     return renderProfileAlumni()
   }
 
@@ -674,7 +752,7 @@ const Settings = () => {
           noBorder
           title="Career Visibility"
           description="Control how your professional presence appears to students and recruiters."
-          onSave={() => flashSave('pro')}
+          onSave={() => persistProfileChanges('pro')}
         >
           <div className="divide-y divide-gray-100">
             <ToggleItem
@@ -824,7 +902,7 @@ const Settings = () => {
           noBorder
           title="Academic Details"
           description="Your current academic information shown on your profile."
-          onSave={() => flashSave('academic')}
+          onSave={() => persistProfileChanges('academic')}
         >
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field
@@ -1366,7 +1444,7 @@ const Settings = () => {
         </div>
       )
     }
-    if (role === 'University' || role === 'SA') {
+    if (role === 'Admin' || role === 'SA') {
       return (
         <div className="space-y-8">
           <FormSection
@@ -1689,7 +1767,7 @@ const Settings = () => {
           )}
         </FormSection>
       )}
-      {(role === 'University' || role === 'SA') && (
+      {(role === 'Admin' || role === 'SA') && (
         <FormSection
           title="Remove admin access"
           description="Request to have your administrator role removed. A Super Admin must action this request."

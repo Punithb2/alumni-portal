@@ -56,6 +56,8 @@ export default function ClubsManager() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [editingClub, setEditingClub] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -65,6 +67,23 @@ export default function ClubsManager() {
     coverPhoto: '',
   })
   const [settingsMenuId, setSettingsMenuId] = useState(null)
+
+  const getErrorMessage = (error) => {
+    const detail = error?.response?.data
+    if (!detail) return 'Unable to save this club right now.'
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) return detail.join(', ')
+    if (typeof detail.detail === 'string') return detail.detail
+
+    const firstEntry = Object.entries(detail)[0]
+    if (!firstEntry) return 'Unable to save this club right now.'
+
+    const [, value] = firstEntry
+    if (Array.isArray(value)) return value.join(', ')
+    if (typeof value === 'string') return value
+
+    return 'Unable to save this club right now.'
+  }
 
   const stats = {
     total: clubs.length,
@@ -86,6 +105,7 @@ export default function ClubsManager() {
 
   const openCreate = () => {
     setEditingClub(null)
+    setSubmitError('')
     setForm({
       name: '',
       description: '',
@@ -100,6 +120,7 @@ export default function ClubsManager() {
 
   const openEdit = (club) => {
     setEditingClub(club)
+    setSubmitError('')
     setForm({
       name: club.name,
       description: club.description,
@@ -112,21 +133,27 @@ export default function ClubsManager() {
     setSettingsMenuId(null)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (editingClub) {
-      updateClub(editingClub.id, form)
-    } else {
-      // Clubs created from the University admin panel are treated
-      // as university-created and can go live immediately.
-      createClub({
-        ...form,
-        status: 'active',
-        createdByRole: 'University',
-        createdByName: 'University Admin',
-      })
+    setSubmitError('')
+    setIsSubmitting(true)
+    try {
+      if (editingClub) {
+        await updateClub(editingClub.id, form)
+      } else {
+        await createClub({
+          ...form,
+          status: 'active',
+          createdByRole: 'University',
+          createdByName: 'University Admin',
+        })
+      }
+      setIsDrawerOpen(false)
+    } catch (error) {
+      setSubmitError(getErrorMessage(error))
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsDrawerOpen(false)
   }
 
   const handleDelete = (id) => {
@@ -427,7 +454,7 @@ export default function ClubsManager() {
         <div className="fixed inset-0 z-50 flex justify-end">
           <div
             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-            onClick={() => setIsDrawerOpen(false)}
+            onClick={() => !isSubmitting && setIsDrawerOpen(false)}
           />
           <div className="relative bg-white shadow-2xl w-full max-w-[500px] flex flex-col h-full border-l border-slate-200 animate-in slide-in-from-right duration-300">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -442,14 +469,20 @@ export default function ClubsManager() {
                 </p>
               </div>
               <button
-                onClick={() => setIsDrawerOpen(false)}
-                className="p-2 bg-slate-50 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"
+                onClick={() => !isSubmitting && setIsDrawerOpen(false)}
+                disabled={isSubmitting}
+                className="p-2 bg-slate-50 hover:bg-slate-200 rounded-full text-slate-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <X size={18} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50/40">
               <form id="club-form" onSubmit={handleSubmit} className="space-y-5">
+                {submitError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {submitError}
+                  </div>
+                )}
                 {[
                   {
                     label: 'Club Name *',
@@ -549,16 +582,18 @@ export default function ClubsManager() {
             <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
               <button
                 onClick={() => setIsDrawerOpen(false)}
-                className="px-5 py-2.5 font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
+                disabled={isSubmitting}
+                className="px-5 py-2.5 font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 form="club-form"
                 type="submit"
-                className="px-6 py-2.5 font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all hover:-translate-y-0.5"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {editingClub ? 'Save Changes' : 'Create Club'}
+                {isSubmitting ? 'Saving...' : editingClub ? 'Save Changes' : 'Create Club'}
               </button>
             </div>
           </div>

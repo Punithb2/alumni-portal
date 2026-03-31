@@ -19,7 +19,13 @@ const ClubsTopNav = ({
   pendingCount = 0,
 }) => {
   const { user } = useAuth()
-  const canCreate = user?.role === 'Alumni' || user?.role === 'University' || user?.role === 'SA'
+  const normalizedRole = String(user?.role || '').toLowerCase()
+  const canCreate =
+    normalizedRole === 'alumni' ||
+    normalizedRole === 'admin' ||
+    normalizedRole === 'university' ||
+    normalizedRole === 'sa' ||
+    normalizedRole === 'super_admin'
 
   return (
     <div className="w-full bg-white rounded-2xl shadow-sm border border-slate-200 p-3 mb-6">

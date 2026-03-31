@@ -56,46 +56,17 @@ const AuthInput = ({ label, icon: Icon, type = 'text', ...props }) => {
   )
 }
 
-const RoleSelector = ({ value, onChange }) => {
-  const roles = ['Alumni', 'Student', 'University']
-
-  return (
-    <div className="flex space-x-3 mt-1">
-      {roles.map((role) => (
-        <button
-          key={role}
-          type="button"
-          onClick={() => onChange(role)}
-          className={`flex-1 py-2 px-3 text-sm font-medium rounded-xl border transition-all ${
-            value === role
-              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-500'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          {role}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // ==========================================
 // Login Page
 // ==========================================
 
 export const Login = () => {
   const navigate = useNavigate()
-  const [role, setRole] = useState('Alumni')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
 
   const { login } = useAuth()
-
-  const handleRoleChange = (newRole) => {
-    setRole(newRole)
-    setLoginError('')
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -173,19 +144,11 @@ export const Login = () => {
 
           <div className="bg-white py-8 px-4 sm:px-10 shadow-xl shadow-slate-200/50 sm:rounded-2xl border border-slate-100">
             <form className="space-y-6" onSubmit={handleSubmit}>
-              {/* Role Selection */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Select your role
-                </label>
-                <RoleSelector value={role} onChange={handleRoleChange} />
-              </div>
-
               <AuthInput
                 label="Email / College ID"
                 icon={Mail}
                 type="text"
-                placeholder={`Enter your ${role.toLowerCase()} email`}
+                placeholder="Enter your email or college ID"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -240,7 +203,7 @@ export const Login = () => {
                                                hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
                                                focus-visible:outline-sky-600 transition-colors active:scale-[0.98]"
                 >
-                  Sign in as {role}
+                  Sign in
                 </button>
               </div>
             </form>
@@ -260,7 +223,7 @@ export const Login = () => {
                   to="/register"
                   className="font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
                 >
-                  Create {role.toLowerCase()} account &rarr;
+                  Create account &rarr;
                 </Link>
               </div>
             </div>

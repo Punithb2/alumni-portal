@@ -52,11 +52,11 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='campaign',
-            constraint=models.CheckConstraint(check=models.Q(raised__gte=0), name='campaign_raised_non_negative'),
+            constraint=models.CheckConstraint(condition=models.Q(raised__gte=0), name='campaign_raised_non_negative'),
         ),
         migrations.AddConstraint(
             model_name='campaign',
-            constraint=models.CheckConstraint(check=models.Q(donor_count__gte=0), name='campaign_donor_count_non_negative'),
+            constraint=models.CheckConstraint(condition=models.Q(donor_count__gte=0), name='campaign_donor_count_non_negative'),
         ),
         migrations.AddIndex(
             model_name='campaign',
@@ -68,7 +68,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='donation',
-            constraint=models.CheckConstraint(check=models.Q(amount__gt=0), name='donation_amount_gt_zero'),
+            constraint=models.CheckConstraint(condition=models.Q(amount__gt=0), name='donation_amount_gt_zero'),
         ),
         migrations.AddIndex(
             model_name='donation',
