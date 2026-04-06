@@ -228,7 +228,7 @@ We recommend keeping two split terminals open during development:
 
 **Terminal 1 (Left): Backend**
 - `cd backend`
-- Activate venv
+- `venv\scripts\activate`
 - `python manage.py runserver`
 
 **Terminal 2 (Right): Frontend**
