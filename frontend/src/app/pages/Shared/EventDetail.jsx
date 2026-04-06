@@ -1,16 +1,18 @@
 import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useEvents } from '../../hooks/useEvents'
-import useAuth from '../../hooks/useAuth'
 import { ArrowLeft, Calendar, MapPin, Users, Ticket, CheckCircle2 } from 'lucide-react'
 
 export default function EventDetail() {
   const { id } = useParams()
-  const { getEventById, registerUser } = useEvents()
-  const { user } = useAuth()
+  const { getEventById, registerUser, cancelRsvp, loading, error } = useEvents()
   const event = getEventById(id)
   const [isSuccess, setIsSuccess] = useState(false)
   const [showPaymentAlert, setShowPaymentAlert] = useState(false)
+
+  if (loading) {
+    return <div className="max-w-4xl mx-auto py-12 text-center text-slate-500">Loading event...</div>
+  }
 
   if (!event) {
     return (
@@ -29,8 +31,7 @@ export default function EventDetail() {
   // Derived state
   const isFree = event.price === 0 || !event.price
   const isSoldOut = event.capacity && event.attendees >= event.capacity
-  const currentUser = user || { id: 'u1', name: 'Demo Alumni' }
-  const hasRegistered = event.registeredUsers?.some((u) => u.id === currentUser.id)
+  const hasRegistered = Boolean(event.is_registered)
 
   let dateObj = new Date()
   try {
@@ -50,19 +51,29 @@ export default function EventDetail() {
     hour12: true,
   }).format(dateObj)
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!isFree) {
       setShowPaymentAlert(true)
       setTimeout(() => setShowPaymentAlert(false), 3000)
       return
     }
-    registerUser(event.id, currentUser)
+    await registerUser(event.id)
     setIsSuccess(true)
     setTimeout(() => setIsSuccess(false), 3000)
   }
 
+  const handleCancel = async () => {
+    await cancelRsvp(event.id)
+    setIsSuccess(false)
+  }
+
   return (
     <div className="max-w-6xl mx-auto py-6 md:py-8 animate-in fade-in duration-500">
+      {error && (
+        <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
       <Link
         to="/events"
         className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-6 font-semibold transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200"
@@ -192,10 +203,19 @@ export default function EventDetail() {
             </div>
 
             {hasRegistered ? (
-              <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 border border-emerald-100 text-center">
-                <CheckCircle2 size={32} className="text-emerald-500 mb-1" />
-                <p className="font-bold text-lg">You're Registered!</p>
-                <p className="text-xs">Check your email for tickets.</p>
+              <div className="space-y-3">
+                <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 border border-emerald-100 text-center">
+                  <CheckCircle2 size={32} className="text-emerald-500 mb-1" />
+                  <p className="font-bold text-lg">You're Registered!</p>
+                  <p className="text-xs">Check your email for tickets.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel RSVP
+                </button>
               </div>
             ) : isSuccess ? (
               <div className="bg-indigo-50 text-indigo-700 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 border border-indigo-100 text-center animate-in zoom-in-95 duration-300">

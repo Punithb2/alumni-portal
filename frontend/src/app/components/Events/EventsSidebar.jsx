@@ -14,8 +14,8 @@ const EventsSidebar = ({
   setViewMode,
 }) => {
   const tabs = ['Upcoming', 'Past']
-  const eventTypes = ['All', 'Online', 'In-person', 'Hybrid']
-  const categories = ['All', 'Networking', 'Webinar', 'Reunion', 'Gala']
+  const eventTypes = ['All', 'In-Person', 'Virtual', 'Hybrid']
+  const categories = ['All', 'Networking', 'Career', 'Entrepreneurship', 'Social', 'Webinar', 'Reunion', 'Gala']
 
   return (
     <div className="w-full shrink-0 flex flex-col md:flex-row gap-4 mb-6">

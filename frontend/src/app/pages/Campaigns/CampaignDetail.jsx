@@ -1,8 +1,6 @@
 import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useCampaigns } from '../../hooks/useCampaigns'
-import { useGamification } from '../../hooks/useGamification'
-import { BADGES } from '../../data/gamification'
 import { ProgressBar } from '../../components/campaigns/ProgressBar'
 import {
   ArrowLeft,
@@ -86,7 +84,6 @@ function DonorAvatar({ name, amount, date, anonymous, isParticipation = false })
 export default function CampaignDetail() {
   const { id } = useParams()
   const { getCampaignById, donateToCampaign, participateInCampaign } = useCampaigns()
-  const { awardPoints } = useGamification()
   const campaign = getCampaignById(id)
   const [pledgeAmount, setPledgeAmount] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
@@ -145,7 +142,6 @@ export default function CampaignDetail() {
 
     if (isParticipation) {
       participateInCampaign(id, { participantName: isAnonymous ? 'Anonymous' : donorName })
-      awardPoints(50, 'Participated in Campaign', BADGES.CONNECTOR.id)
       setIsSuccess(true)
       setTimeout(() => setIsSuccess(false), 4000)
     } else if (Number(pledgeAmount) > 0) {
@@ -155,7 +151,6 @@ export default function CampaignDetail() {
         recurring: isRecurring && allowRecurring,
         frequency: isRecurring ? recurringFreq : null,
       })
-      awardPoints(100, 'Donated to Campaign', BADGES.PHILANTHROPIST.id)
       setIsSuccess(true)
       setPledgeAmount('')
       setTimeout(() => setIsSuccess(false), 4000)

@@ -14,7 +14,9 @@ from .models import (
     HiringDrive, MentorProfile, MentoringSession, MentorGoal,
     MentoringRequest, Post, Comment, ForumCategory, ForumTopic,
     ForumReply, Conversation, Message, ConnectionRequest, Event, NewsArticle, Notification,
-    Campaign, Donation, Club, ClubMembership, ClubJoinRequest, ClubPost, ClubMessage
+    Campaign, Donation, Club, ClubMembership, ClubJoinRequest, ClubPost, ClubPostComment,
+    ClubPostLike, ClubMessage,
+    PortalSettings, AuditLog
 )
 
 
@@ -72,7 +74,7 @@ def get_connection_request_id_for_user(current_user, other_user):
 class UserBasicSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'last_login']
 
 
 class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -194,6 +196,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     education = EducationSerializer(many=True, read_only=True)
     connection_status = serializers.SerializerMethodField()
     connection_request_id = serializers.SerializerMethodField()
+    account_status = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
@@ -201,7 +204,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
                   'department', 'graduation_year', 'current_company', 'current_position',
                   'linkedin_url', 'github_url', 'website', 'phone', 'student_id', 
                   'skills', 'willing_to_mentor', 'willing_to_hire', 'visibility',
+                  'supplemental_profile', 'professional_preferences', 'mentorship_preferences',
+                  'notification_preferences', 'privacy_preferences',
                   'work_experiences', 'education', 'connection_status', 'connection_request_id',
+                  'account_status',
                   'first_name', 'last_name', 'email']
 
     def update(self, instance, validated_data):
@@ -245,6 +251,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if rel and rel.status == 'pending':
             return rel.id
         return None
+
+    def get_account_status(self, obj):
+        user = getattr(obj, 'user', None)
+        if not user:
+            return 'Active'
+        if not user.is_active:
+            return 'Suspended'
+        invited = bool((obj.supplemental_profile or {}).get('invited'))
+        if invited and not user.last_login:
+            return 'Pending'
+        return 'Active'
 
 # ==========================================
 # 2. JOB BOARD & CAREERS
@@ -451,10 +468,13 @@ class ForumTopicSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     attendees_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    club_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
         fields = '__all__'
+        read_only_fields = ['created_by']
 
     def get_attendees_count(self, obj):
         return obj.attendees.count()
@@ -464,6 +484,14 @@ class EventSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.attendees.filter(id=request.user.id).exists()
         return False
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name().strip() or obj.created_by.username
+        return ''
+
+    def get_club_name(self, obj):
+        return obj.club.name if obj.club else ''
 
 class NotificationSerializer(serializers.ModelSerializer):
     can_respond = serializers.SerializerMethodField()
@@ -492,9 +520,44 @@ class NotificationSerializer(serializers.ModelSerializer):
         return req.status if req else None
 
 class NewsArticleSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+
     class Meta:
         model = NewsArticle
         fields = '__all__'
+        read_only_fields = ['author', 'author_name', 'updated_at', 'published_at']
+
+    def get_author_name(self, obj):
+        if obj.author:
+            return obj.author.get_full_name() or obj.author.username
+        return 'Admin'
+
+
+class PortalSettingsSerializer(serializers.ModelSerializer):
+    updated_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PortalSettings
+        fields = '__all__'
+        read_only_fields = ['updated_by', 'updated_at']
+
+    def get_updated_by_name(self, obj):
+        if obj.updated_by:
+            return obj.updated_by.get_full_name()
+        return ''
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = '__all__'
+
+    def get_actor_name(self, obj):
+        if obj.actor:
+            return obj.actor.get_full_name()
+        return 'System'
 
 # ==========================================
 # 6. MESSAGING
@@ -610,30 +673,74 @@ class ClubMembershipSerializer(serializers.ModelSerializer):
 
 class ClubJoinRequestSerializer(serializers.ModelSerializer):
     user = UserBasicSerializer(read_only=True)
+    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = ClubJoinRequest
         fields = '__all__'
 
+    def get_avatar(self, obj):
+        return get_user_avatar(obj.user)
+
 class ClubPostCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_avatar = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
 
     class Meta:
-        model = Comment
+        model = ClubPostComment
         fields = '__all__'
+        read_only_fields = ['author', 'post', 'created_at']
+
+    def get_author_avatar(self, obj):
+        return get_user_avatar(obj.author)
+
+    def get_replies(self, obj):
+        reply_qs = obj.replies.select_related('author', 'author__profile').all()
+        serializer = ClubPostCommentSerializer(reply_qs, many=True, context=self.context)
+        return serializer.data
+
+    def validate_content(self, value):
+        return validate_text_length(value, 'Comment', 2000)
 
 class ClubPostSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
     author_avatar = serializers.SerializerMethodField()
     author_id = serializers.IntegerField(source='author.id', read_only=True)
+    comments = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    likes = serializers.SerializerMethodField()
 
     class Meta:
         model = ClubPost
         fields = '__all__'
-        read_only_fields = ['author', 'club', 'likes', 'is_pinned', 'created_at']
+        read_only_fields = ['author', 'club', 'is_pinned', 'created_at']
 
     def get_author_avatar(self, obj):
         return get_user_avatar(obj.author)
+
+    def get_comments(self, obj):
+        top_level_comments = (
+            obj.comments.filter(parent__isnull=True)
+            .select_related('author', 'author__profile')
+            .prefetch_related('replies__author__profile')
+        )
+        serializer = ClubPostCommentSerializer(top_level_comments, many=True, context=self.context)
+        return serializer.data
+
+    def get_comment_count(self, obj):
+        return obj.comments.count()
+
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        current_user = getattr(request, 'user', None)
+        if not current_user or not current_user.is_authenticated:
+            return False
+        return obj.user_likes.filter(user=current_user).exists()
+
+    def get_likes(self, obj):
+        return obj.user_likes.count() if hasattr(obj, 'user_likes') else obj.likes
 
     def validate_content(self, value):
         return validate_text_length(value, 'Post content', 5000)

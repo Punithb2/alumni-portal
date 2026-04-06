@@ -5,9 +5,14 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
 from rest_framework.exceptions import NotFound
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.utils.crypto import get_random_string
 from django.db import transaction
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
+from datetime import timedelta
 from collections import Counter
+from django.utils.dateparse import parse_datetime
 from . import models
 from . import permissions as custom_permissions
 from .serializers import (
@@ -20,7 +25,8 @@ from .serializers import (
     ConversationSerializer, MessageSerializer,
     CampaignSerializer, DonationSerializer,
     ClubSerializer, ClubMembershipSerializer, ClubJoinRequestSerializer,
-    ClubPostSerializer, ClubMessageSerializer,
+    ClubPostSerializer, ClubPostCommentSerializer, ClubMessageSerializer,
+    PortalSettingsSerializer, AuditLogSerializer,
     EmailOrUsernameTokenObtainPairSerializer,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -48,6 +54,212 @@ def get_user_profile(request):
         return Response(serializer.data)
     except models.UserProfile.DoesNotExist:
         raise NotFound('Profile not found.')
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def change_password(request):
+    current_password = request.data.get('current_password') or ''
+    new_password = request.data.get('new_password') or ''
+    confirm_password = request.data.get('confirm_password') or ''
+
+    if not request.user.check_password(current_password):
+        raise ValidationError({'current_password': ['Current password is incorrect.']})
+    if not new_password:
+        raise ValidationError({'new_password': ['New password is required.']})
+    if new_password != confirm_password:
+        raise ValidationError({'confirm_password': ['Passwords do not match.']})
+
+    validate_password(new_password, request.user)
+    request.user.set_password(new_password)
+    request.user.save(update_fields=['password'])
+    models.AuditLog.objects.create(action='Password changed', actor=request.user)
+    return Response({'status': 'password_updated'})
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_active_sessions(request):
+    user_agent = request.META.get('HTTP_USER_AGENT', 'Current browser')
+    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    ip_address = forwarded_for.split(',')[0].strip() if forwarded_for else request.META.get('REMOTE_ADDR', '')
+    now = timezone.now()
+    last_login = request.user.last_login or now
+
+    session = {
+        'id': 'current-session',
+        'device': user_agent[:120] or 'Current browser',
+        'ip': ip_address or 'Unavailable',
+        'last_active_at': last_login,
+        'current': True,
+    }
+    return Response([session])
+
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def delete_account(request):
+    user = request.user
+    models.AuditLog.objects.create(
+        action='Account deleted',
+        actor=user,
+        details={'user_id': user.id, 'email': user.email},
+    )
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _normalize_admin_role(value):
+    normalized = (value or '').strip().lower()
+    if normalized in {'admin', 'university'}:
+        return 'admin'
+    if normalized == 'student':
+        return 'student'
+    return 'alumni'
+
+
+def _split_full_name(full_name):
+    parts = (full_name or '').strip().split()
+    if not parts:
+        return '', ''
+    first_name = parts[0]
+    last_name = ' '.join(parts[1:])
+    return first_name, last_name
+
+
+def _generate_unique_username(email, fallback_prefix='user'):
+    base = (email.split('@')[0] if email and '@' in email else fallback_prefix).strip().lower()
+    base = ''.join(ch for ch in base if ch.isalnum() or ch in {'_', '.'}) or fallback_prefix
+    candidate = base
+    suffix = 1
+    while User.objects.filter(username=candidate).exists():
+        candidate = f'{base}{suffix}'
+        suffix += 1
+    return candidate
+
+
+@api_view(['POST'])
+@permission_classes([custom_permissions.IsAdminUser])
+def admin_invite_user(request):
+    full_name = (request.data.get('name') or '').strip()
+    email = (request.data.get('email') or '').strip().lower()
+    role = _normalize_admin_role(request.data.get('role'))
+
+    if not full_name:
+        raise ValidationError({'name': ['Full name is required.']})
+    if not email:
+        raise ValidationError({'email': ['Email is required.']})
+    if User.objects.filter(email__iexact=email).exists():
+        raise ValidationError({'email': ['A user with this email already exists.']})
+
+    first_name, last_name = _split_full_name(full_name)
+    temporary_password = get_random_string(12)
+
+    with transaction.atomic():
+        user = User.objects.create_user(
+            username=_generate_unique_username(email),
+            email=email,
+            password=temporary_password,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True,
+        )
+        profile = models.UserProfile.objects.create(
+            user=user,
+            role=role,
+            supplemental_profile={'invited': True},
+        )
+        models.AuditLog.objects.create(
+            action='User invited',
+            actor=request.user,
+            details={'user_id': user.id, 'email': email, 'role': role},
+        )
+
+    serializer = UserProfileSerializer(profile, context={'request': request})
+    return Response(
+        {
+            'user': serializer.data,
+            'temporary_password': temporary_password,
+            'message': 'User invitation created successfully.',
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([custom_permissions.IsAdminUser])
+def admin_bulk_import_users(request):
+    rows = request.data.get('users')
+    default_role = _normalize_admin_role(request.data.get('default_role'))
+
+    if not isinstance(rows, list) or not rows:
+        raise ValidationError({'users': ['At least one user row is required.']})
+
+    created = []
+    skipped = []
+
+    with transaction.atomic():
+        for index, row in enumerate(rows, start=1):
+            full_name = (row.get('name') or row.get('full_name') or '').strip()
+            email = (row.get('email') or '').strip().lower()
+            role = _normalize_admin_role(row.get('role') or default_role)
+            department = (row.get('department') or '').strip()
+            current_company = (row.get('company') or '').strip()
+            city = (row.get('location') or '').strip()
+            graduation_year = row.get('graduation_year') or row.get('graduationYear')
+
+            if not full_name or not email:
+                skipped.append({'row': index, 'reason': 'Missing name or email.'})
+                continue
+            if User.objects.filter(email__iexact=email).exists():
+                skipped.append({'row': index, 'reason': 'Email already exists.', 'email': email})
+                continue
+
+            first_name, last_name = _split_full_name(full_name)
+            temporary_password = get_random_string(12)
+            user = User.objects.create_user(
+                username=_generate_unique_username(email),
+                email=email,
+                password=temporary_password,
+                first_name=first_name,
+                last_name=last_name,
+                is_active=True,
+            )
+            profile = models.UserProfile.objects.create(
+                user=user,
+                role=role,
+                department=department,
+                city=city,
+                current_company=current_company,
+                graduation_year=int(graduation_year) if graduation_year not in (None, '', '—') else None,
+                supplemental_profile={'invited': True, 'bulk_imported': True},
+            )
+            created.append({
+                'profile': profile,
+                'temporary_password': temporary_password,
+            })
+
+        models.AuditLog.objects.create(
+            action='Bulk user import',
+            actor=request.user,
+            details={'created_count': len(created), 'skipped_count': len(skipped)},
+        )
+
+    serializer = UserProfileSerializer(
+        [entry['profile'] for entry in created],
+        many=True,
+        context={'request': request},
+    )
+    return Response(
+        {
+            'created': [
+                {**profile_data, 'temporary_password': created[idx]['temporary_password']}
+                for idx, profile_data in enumerate(serializer.data)
+            ],
+            'skipped': skipped,
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 # ==========================================
 # 2. PROFILES
@@ -434,7 +646,7 @@ class ForumReplyViewSet(viewsets.ModelViewSet):
 # ==========================================
 
 class EventViewSet(viewsets.ModelViewSet):
-    queryset = models.Event.objects.order_by('date').all()
+    queryset = models.Event.objects.select_related('club', 'created_by').order_by('date').all()
     serializer_class = EventSerializer
     
     def get_permissions(self):
@@ -444,6 +656,42 @@ class EventViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         return {'request': self.request}
+
+    @action(detail=True, methods=['post'], permission_classes=[custom_permissions.IsAdminUser])
+    def set_status(self, request, pk=None):
+        profile = self.get_object()
+        status_value = (request.data.get('status') or '').strip().lower()
+
+        if status_value not in {'active', 'suspended'}:
+            raise ValidationError({'status': ['Status must be Active or Suspended.']})
+
+        profile.user.is_active = status_value == 'active'
+        profile.user.save(update_fields=['is_active'])
+
+        if status_value == 'active':
+            supplemental = dict(profile.supplemental_profile or {})
+            supplemental.pop('invited', None)
+            profile.supplemental_profile = supplemental
+            profile.save(update_fields=['supplemental_profile'])
+
+        models.AuditLog.objects.create(
+            action='User status updated',
+            actor=request.user,
+            details={'user_id': profile.user_id, 'status': status_value},
+        )
+
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
+
+    def get_queryset(self):
+        queryset = self.queryset
+        club_id = self.request.query_params.get('club')
+        if club_id:
+            queryset = queryset.filter(club_id=club_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def rsvp(self, request, pk=None):
@@ -456,6 +704,211 @@ class EventViewSet(viewsets.ModelViewSet):
         event = self.get_object()
         event.attendees.remove(request.user)
         return Response({'status': 'cancelled', 'attendees_count': event.attendees.count()})
+
+
+@api_view(['GET'])
+@permission_classes([custom_permissions.IsAdminUser])
+def admin_dashboard_analytics(request):
+    now = timezone.now()
+    date_range = request.query_params.get('date_range', '30d')
+    segment = request.query_params.get('segment', 'all')
+
+    if date_range == '7d':
+        period_start = now - timedelta(days=7)
+    elif date_range == 'quarter':
+        quarter_month = ((now.month - 1) // 3) * 3 + 1
+        period_start = now.replace(month=quarter_month, day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        period_start = now - timedelta(days=30)
+
+    previous_period_start = period_start - (now - period_start)
+
+    profiles = models.UserProfile.objects.select_related('user').all()
+    if segment in {'alumni', 'student', 'admin'}:
+        profiles = profiles.filter(role=segment)
+
+    total_users = profiles.count()
+    new_users_period = profiles.filter(user__date_joined__gte=period_start).count()
+    previous_new_users = profiles.filter(
+        user__date_joined__gte=previous_period_start,
+        user__date_joined__lt=period_start,
+    ).count()
+    trend_percent = 0
+    if previous_new_users:
+        trend_percent = round(((new_users_period - previous_new_users) / previous_new_users) * 100)
+    elif new_users_period:
+        trend_percent = 100
+
+    alumni_profiles = models.UserProfile.objects.filter(role='alumni')
+    mentors_total = models.MentorProfile.objects.count()
+    mentoring_requests_pending = models.MentoringRequest.objects.filter(status='pending').count()
+    active_matches = models.MentoringSession.objects.exclude(status='canceled').count()
+
+    jobs_in_period = models.Job.objects.filter(created_at__gte=period_start)
+    applications_in_period = models.JobApplication.objects.filter(applied_at__gte=period_start)
+    referrals_in_period = applications_in_period.filter(job__can_refer=True).count()
+
+    upcoming_events = models.Event.objects.filter(date__gte=now).annotate(attendee_count=Count('attendees'))
+    sample_events = list(upcoming_events.order_by('date')[:10])
+    avg_rsvps = (
+        round(sum(event.attendee_count for event in sample_events) / len(sample_events))
+        if sample_events
+        else 0
+    )
+
+    active_campaigns = models.Campaign.objects.filter(status='active')
+    campaign_goal = float(
+        active_campaigns.aggregate(total=Sum('goal')).get('total') or 0
+    )
+    campaign_raised = float(
+        active_campaigns.aggregate(total=Sum('raised')).get('total') or 0
+    )
+
+    current_week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    engagement_data = []
+    jobs_data = []
+    for weeks_ago in range(3, -1, -1):
+        week_start = current_week_start - timedelta(weeks=weeks_ago)
+        week_end = week_start + timedelta(days=7)
+        week_profiles = models.UserProfile.objects.filter(
+            user__date_joined__gte=week_start,
+            user__date_joined__lt=week_end,
+        )
+        week_jobs = models.Job.objects.filter(created_at__gte=week_start, created_at__lt=week_end)
+        week_applications = models.JobApplication.objects.filter(
+            applied_at__gte=week_start,
+            applied_at__lt=week_end,
+        )
+        label = week_start.strftime('%d %b')
+        engagement_data.append({
+            'name': label,
+            'all': week_profiles.count(),
+            'alumni': week_profiles.filter(role='alumni').count(),
+            'student': week_profiles.filter(role='student').count(),
+        })
+        jobs_data.append({
+            'name': label,
+            'posted': week_jobs.count(),
+            'applications': week_applications.count(),
+            'referrals': week_applications.filter(job__can_refer=True).count(),
+        })
+
+    directory_data = [
+        {'name': 'Alumni', 'value': models.UserProfile.objects.filter(role='alumni').count(), 'color': '#10b981'},
+        {'name': 'Students', 'value': models.UserProfile.objects.filter(role='student').count(), 'color': '#3b82f6'},
+        {'name': 'Admins', 'value': models.UserProfile.objects.filter(role='admin').count(), 'color': '#6366f1'},
+    ]
+
+    mentoring_data = [
+        {'name': 'Mentors', 'value': mentors_total, 'fill': 'url(#mentorGrad)'},
+        {
+            'name': 'Mentees',
+            'value': models.MentoringRequest.objects.values('mentee').distinct().count(),
+            'fill': 'url(#menteeGrad)',
+        },
+        {'name': 'Requests', 'value': models.MentoringRequest.objects.count(), 'fill': 'url(#requestGrad)'},
+        {'name': 'Matches', 'value': active_matches, 'fill': 'url(#matchGrad)'},
+    ]
+
+    event_data = [
+        {
+            'name': (event.title[:18] + '...') if len(event.title) > 18 else event.title,
+            'Capacity': event.capacity or 0,
+            'Registered': event.attendee_count,
+        }
+        for event in upcoming_events.order_by('date')[:4]
+    ]
+
+    campaign_data = []
+    for campaign in active_campaigns.order_by('-featured', '-raised')[:3]:
+        goal_value = float(campaign.goal or 0)
+        raised_value = float(campaign.raised or 0)
+        percent = raised_value / goal_value if goal_value else 0
+        campaign_data.append({
+            'id': campaign.id,
+            'name': campaign.title,
+            'raised': raised_value,
+            'goal': goal_value,
+            'donors': campaign.donor_count,
+            'daysLeft': max(0, (campaign.deadline - now.date()).days) if campaign.deadline else 0,
+            'status': 'green' if percent >= 0.75 else 'amber' if percent >= 0.35 else 'red',
+            'isParticipation': campaign.campaign_type == 'participation',
+        })
+
+    actions = []
+    pending_clubs = models.Club.objects.filter(status='pending').order_by('-created_at')[:2]
+    for club in pending_clubs:
+        creator_name = club.created_by.get_full_name().strip() if club.created_by else 'Unknown'
+        actions.append({
+            'id': f'club-{club.id}',
+            'type': 'Club approval',
+            'desc': f'{club.name} by {creator_name or "Unknown"}',
+            'route': '/admin/clubs',
+            'icon': 'users',
+            'colorClasses': 'bg-purple-50 text-purple-600 border-purple-100',
+        })
+    pending_requests = models.MentoringRequest.objects.filter(status='pending').order_by('-requested_at')[:2]
+    for req in pending_requests:
+        mentee_name = req.mentee.get_full_name().strip() or req.mentee.username
+        actions.append({
+            'id': f'mentor-{req.id}',
+            'type': 'Mentorship request',
+            'desc': f'{mentee_name} is waiting for mentor review',
+            'route': '/directory',
+            'icon': 'user-plus',
+            'colorClasses': 'bg-rose-50 text-rose-600 border-rose-100',
+        })
+
+    highlights = []
+    for event in upcoming_events.order_by('date')[:2]:
+        highlights.append({
+            'id': f'event-{event.id}',
+            'title': event.title,
+            'subtitle': f'{event.attendee_count} registered',
+            'month': event.date.strftime('%b'),
+            'day': event.date.strftime('%d'),
+            'tone': 'indigo',
+        })
+    for campaign in active_campaigns.filter(deadline__isnull=False).order_by('deadline')[:2]:
+        highlights.append({
+            'id': f'campaign-{campaign.id}',
+            'title': campaign.title,
+            'subtitle': f'Ends in {max(0, (campaign.deadline - now.date()).days)} days',
+            'month': campaign.deadline.strftime('%b'),
+            'day': campaign.deadline.strftime('%d'),
+            'tone': 'amber',
+        })
+
+    return Response({
+        'kpis': {
+            'total_users': total_users,
+            'new_users_period': new_users_period,
+            'trend_percent': trend_percent,
+            'alumni_total': alumni_profiles.count(),
+            'new_alumni': alumni_profiles.filter(user__date_joined__gte=period_start).count(),
+            'mentors_total': mentors_total,
+            'mentoring_requests_pending': mentoring_requests_pending,
+            'active_matches': active_matches,
+            'jobs_posted': jobs_in_period.count(),
+            'applications': applications_in_period.count(),
+            'referrals': referrals_in_period,
+            'upcoming_events': upcoming_events.count(),
+            'avg_rsvps': avg_rsvps,
+            'active_campaigns': active_campaigns.count(),
+            'campaign_raised': campaign_raised,
+            'campaign_goal': campaign_goal,
+        },
+        'charts': {
+            'engagement': engagement_data,
+            'directory': directory_data,
+            'mentoring': mentoring_data,
+            'jobs': jobs_data,
+            'events': event_data,
+            'campaigns': campaign_data,
+        },
+        'actions': actions[:4],
+        'highlights': highlights[:4],
+    })
 
 # ==========================================
 # 8. NOTIFICATIONS & NEWS
@@ -557,13 +1010,72 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({'status': 'rejected'})
 
 class NewsArticleViewSet(viewsets.ModelViewSet):
-    queryset = models.NewsArticle.objects.order_by('-published_at').all()
     serializer_class = NewsArticleSerializer
+
+    def get_queryset(self):
+        queryset = models.NewsArticle.objects.select_related('author').order_by(
+            '-published_at',
+            '-updated_at',
+        )
+        if self.request.user.is_staff:
+            return queryset
+        return queryset.filter(is_published=True)
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [custom_permissions.IsAdminUser()]
         return [permissions.IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        is_published = bool(serializer.validated_data.get('is_published'))
+        serializer.save(
+            author=self.request.user,
+            published_at=timezone.now() if is_published else None,
+        )
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        is_published = serializer.validated_data.get('is_published', instance.is_published)
+        published_at = instance.published_at
+
+        if is_published and not published_at:
+            published_at = timezone.now()
+        if not is_published:
+            published_at = None
+
+        serializer.save(published_at=published_at)
+
+
+class PortalSettingsViewSet(viewsets.ViewSet):
+    permission_classes = [custom_permissions.IsAdminUser]
+
+    def _get_settings(self):
+        settings_obj, _ = models.PortalSettings.objects.get_or_create(pk=1)
+        return settings_obj
+
+    def list(self, request):
+        serializer = PortalSettingsSerializer(self._get_settings())
+        return Response(serializer.data)
+
+    def partial_update(self, request, pk=None):
+        settings_obj = self._get_settings()
+        serializer = PortalSettingsSerializer(settings_obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+        models.AuditLog.objects.create(
+            action='Portal settings updated',
+            actor=request.user,
+            details={'updated_fields': list(serializer.validated_data.keys())},
+        )
+        return Response(serializer.data)
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = AuditLogSerializer
+    permission_classes = [custom_permissions.IsAdminUser]
+
+    def get_queryset(self):
+        return models.AuditLog.objects.select_related('actor').all()[:100]
 
 # ==========================================
 # 9. MESSAGING
@@ -708,7 +1220,13 @@ class DonationViewSet(viewsets.ReadOnlyModelViewSet):
 # ==========================================
 
 class ClubViewSet(viewsets.ModelViewSet):
-    queryset = models.Club.objects.prefetch_related('memberships', 'join_requests').order_by('-created_at').all()
+    queryset = (
+        models.Club.objects
+        .select_related('created_by')
+        .prefetch_related('memberships__user__profile', 'join_requests__user__profile')
+        .order_by('-created_at')
+        .all()
+    )
     serializer_class = ClubSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -888,7 +1406,16 @@ class ClubViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class ClubPostViewSet(viewsets.ModelViewSet):
-    queryset = models.ClubPost.objects.all()
+    queryset = (
+        models.ClubPost.objects
+        .select_related('club', 'author', 'author__profile')
+        .prefetch_related(
+            'user_likes',
+            'comments__author__profile',
+            'comments__replies__author__profile',
+        )
+        .all()
+    )
     serializer_class = ClubPostSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -898,19 +1425,37 @@ class ClubPostViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
+    def _is_platform_admin(self, user):
+        return getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+
+    def _can_access_post(self, post, user):
+        if not post.club.is_private:
+            return True
+        return self._is_platform_admin(user) or post.club.memberships.filter(user=user).exists()
+
     @action(detail=True, methods=['post'])
     def like(self, request, pk=None):
         post = self.get_object()
-        post.likes += 1
-        post.save()
-        return Response({'likes': post.likes})
+        if not self._can_access_post(post, request.user):
+            raise PermissionDenied('You must be a club member to like this post.')
+
+        models.ClubPostLike.objects.get_or_create(post=post, user=request.user)
+        likes_count = post.user_likes.count()
+        post.likes = likes_count
+        post.save(update_fields=['likes'])
+        return Response({'likes': likes_count, 'is_liked': True})
 
     @action(detail=True, methods=['post'])
     def unlike(self, request, pk=None):
         post = self.get_object()
-        post.likes = max(0, post.likes - 1)
-        post.save()
-        return Response({'likes': post.likes})
+        if not self._can_access_post(post, request.user):
+            raise PermissionDenied('You must be a club member to unlike this post.')
+
+        post.user_likes.filter(user=request.user).delete()
+        likes_count = post.user_likes.count()
+        post.likes = likes_count
+        post.save(update_fields=['likes'])
+        return Response({'likes': likes_count, 'is_liked': False})
 
     @action(detail=True, methods=['post'])
     def pin(self, request, pk=None):
@@ -923,6 +1468,38 @@ class ClubPostViewSet(viewsets.ModelViewSet):
         post.is_pinned = not post.is_pinned
         post.save()
         return Response({'is_pinned': post.is_pinned})
+
+    @action(detail=True, methods=['get'])
+    def comments(self, request, pk=None):
+        post = self.get_object()
+        if not self._can_access_post(post, request.user):
+            raise PermissionDenied('You must be a club member to view comments.')
+
+        comments = (
+            post.comments.filter(parent__isnull=True)
+            .select_related('author', 'author__profile')
+            .prefetch_related('replies__author__profile')
+        )
+        serializer = ClubPostCommentSerializer(comments, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_comment(self, request, pk=None):
+        post = self.get_object()
+        if not self._can_access_post(post, request.user):
+            raise PermissionDenied('You must be a club member to comment.')
+
+        parent = None
+        parent_id = request.data.get('parent')
+        if parent_id:
+            parent = post.comments.filter(id=parent_id).first()
+            if not parent:
+                raise ValidationError({'parent': ['Reply target not found for this post.']})
+
+        serializer = ClubPostCommentSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(author=request.user, post=post, parent=parent)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class ClubMembershipViewSet(viewsets.ModelViewSet):

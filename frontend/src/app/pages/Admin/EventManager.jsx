@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { useEvents } from '../../hooks/useEvents'
+import { useClubs } from '../../hooks/useClubs'
 import EventCard from '../../components/Events/EventCard'
 import EventSheet from '../../components/Events/EventSheet'
 import { Plus, X, Search, CalendarDays } from 'lucide-react'
 
 export default function EventManager() {
-  const { events, addEvent, updateEvent, deleteEvent } = useEvents()
+  const { events, addEvent, updateEvent, deleteEvent, loading, error } = useEvents()
+  const { clubs } = useClubs()
   const [isSheetOpen, setSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -20,6 +22,7 @@ export default function EventManager() {
     capacity: '',
     price: '',
     category: 'Networking',
+    club: '',
     type: 'In-Person',
     visibility: 'Public',
     invited: '',
@@ -38,6 +41,7 @@ export default function EventManager() {
         capacity: event.capacity,
         price: event.price,
         category: event.category || 'Networking',
+        club: event.club || '',
         type: event.type || 'In-Person',
         visibility: event.visibility || 'Public',
         invited: (event.invitedMembers || []).map((m) => m.name || m.email).join(', '),
@@ -53,6 +57,7 @@ export default function EventManager() {
         capacity: '',
         price: '',
         category: 'Networking',
+        club: '',
         type: 'In-Person',
         visibility: 'Public',
         invited: '',
@@ -62,7 +67,7 @@ export default function EventManager() {
     setSheetOpen(true)
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const invitedMembers = (formData.invited || '')
       .split(',')
@@ -78,15 +83,16 @@ export default function EventManager() {
       ...formData,
       capacity: Number(formData.capacity),
       price: Number(formData.price),
+      club: formData.club || null,
       invitedMembers: formData.visibility === 'Private' ? invitedMembers : [],
       // Convert datetime-local back to generic format
       date: new Date(formData.date).toISOString(),
     }
 
     if (editingEvent) {
-      updateEvent(editingEvent.id, payload)
+      await updateEvent(editingEvent.id, payload)
     } else {
-      addEvent(payload)
+      await addEvent(payload)
     }
     setSheetOpen(false)
   }
@@ -138,6 +144,17 @@ export default function EventManager() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="rounded-3xl border border-slate-200 bg-white px-4 py-16 text-center text-sm text-slate-500 shadow-sm">
+          Loading events...
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filteredEvents.map((event) => (
           <div key={event.id} className="relative group/manager">
@@ -170,6 +187,7 @@ export default function EventManager() {
           </div>
         )}
       </div>
+      )}
 
       {/* Sheet Drawer Form */}
       {isSheetOpen && (
@@ -219,6 +237,23 @@ export default function EventManager() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      Club Association
+                    </label>
+                    <select
+                      value={formData.club}
+                      onChange={(e) => setFormData({ ...formData, club: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium bg-white"
+                    >
+                      <option value="">General event</option>
+                      {clubs.map((club) => (
+                        <option key={club.id} value={club.id}>
+                          {club.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">
                       Venue / Link

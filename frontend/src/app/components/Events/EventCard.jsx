@@ -3,7 +3,7 @@ import { Calendar, MapPin, Users, CheckCircle2, Ticket } from 'lucide-react'
 
 const EventCard = ({ event, rsvpdEvents, onEventClick, isAdmin }) => {
   // Admin uses preview, users use normal flow
-  const isRsvpd = rsvpdEvents ? rsvpdEvents.has(event.id) : false
+  const isRsvpd = rsvpdEvents ? rsvpdEvents.has(event.id) : Boolean(event.is_registered)
   const isFree = event.price === 0 || !event.price
   const isSoldOut = event.capacity && event.attendees >= event.capacity
 

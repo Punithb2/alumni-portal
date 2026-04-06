@@ -1,12 +1,9 @@
 import React, { useState } from 'react'
 import { X, CheckCircle2, CreditCard, Calendar, MapPin } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
-import { useGamification } from '../../hooks/useGamification'
-import { BADGES } from '../../data/gamification'
 
 const RSVPModal = ({ isOpen, onClose, event, onConfirm }) => {
   const { user } = useAuth()
-  const { awardPoints } = useGamification()
   const [step, setStep] = useState(1) // 1: Info/Ticket, 2: Payment (if paid), 3: Success
   const [ticketType, setTicketType] = useState('General')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -22,7 +19,6 @@ const RSVPModal = ({ isOpen, onClose, event, onConfirm }) => {
       setTimeout(() => {
         setIsProcessing(false)
         setStep(3)
-        awardPoints(50, 'RSVP to Event', BADGES.FIRST_EVENT.id)
         // Auto close after success
         setTimeout(() => {
           onConfirm(event.id)
@@ -202,7 +198,7 @@ const RSVPModal = ({ isOpen, onClose, event, onConfirm }) => {
               </div>
               <h3 className="text-2xl font-bold text-slate-900 mb-2">You're going!</h3>
               <p className="text-slate-500 max-w-xs mx-auto text-sm">
-                We've sent a confirmation email with your ticket and calendar invite.
+                Your registration is confirmed and the attendee list has been updated.
               </p>
             </div>
           )}

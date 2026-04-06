@@ -2,24 +2,6 @@ import { createContext, useEffect, useReducer } from 'react'
 import api from 'app/utils/api'
 
 // ─── Demo user template (no backend needed) ──────────────────────────────────
-const DEMO_USER = {
-  id: 1,
-  email: 'demo@alumni.com',
-  first_name: 'Alex',
-  last_name: 'Johnson',
-  name: 'Alex Johnson',
-  username: 'alex_johnson',
-  role: 'SA',
-  is_admin_role: true,
-  avatar: '',
-  profile: {
-    graduation_year: 2020,
-    department: 'Computer Science',
-    connections_count: 142,
-    bio: 'Software Engineer & Alumni Community Leader',
-  },
-}
-
 // ─── Session helpers ──────────────────────────────────────────────────────────
 const SESSION_KEY = 'alumni_session'
 
@@ -36,16 +18,6 @@ const setStoredSession = (user) => {
   localStorage.setItem(SESSION_KEY, JSON.stringify(user))
 }
 
-const getStoredSettingsProfile = (userId) => {
-  if (!userId) return {}
-  try {
-    const raw = localStorage.getItem(`settings_profile_${userId}`)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
 const clearStoredSession = () => {
   localStorage.removeItem(SESSION_KEY)
   localStorage.removeItem('accessToken')
@@ -58,8 +30,6 @@ const buildSessionUser = (profileData, fallbackUser = null) => {
   const lastName = profileUser.last_name || ''
   const fullName = `${firstName} ${lastName}`.trim()
   const resolvedUserId = profileUser.id ?? fallbackUser?.id ?? null
-  const localSettingsProfile = getStoredSettingsProfile(resolvedUserId)
-  const localAvatar = localSettingsProfile.avatar || ''
   const resolvedProfile = profileData ?? fallbackUser?.profile ?? null
 
   return {
@@ -68,11 +38,11 @@ const buildSessionUser = (profileData, fallbackUser = null) => {
     name: fullName || fallbackUser?.name || profileUser.username || '',
     role: profileData?.role ?? fallbackUser?.role ?? 'student',
     is_admin_role: (profileData?.role ?? fallbackUser?.role) === 'admin',
-    avatar: localAvatar || profileData?.avatar || fallbackUser?.avatar || '',
+    avatar: profileData?.avatar || fallbackUser?.avatar || '',
     profile: resolvedProfile
       ? {
           ...resolvedProfile,
-          avatar: localAvatar || resolvedProfile.avatar || '',
+          avatar: resolvedProfile.avatar || '',
         }
       : resolvedProfile,
   }

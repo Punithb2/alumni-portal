@@ -34,6 +34,16 @@ const formatDate = (value, options) => {
   return nextDate ? nextDate.toLocaleDateString('en-IN', options) : 'Unknown date'
 }
 
+const formatExportDate = (value) => {
+  const nextDate = getValidDate(value)
+  if (!nextDate) return 'Unknown date'
+
+  const year = nextDate.getFullYear()
+  const month = String(nextDate.getMonth() + 1).padStart(2, '0')
+  const day = String(nextDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function MyGiving() {
   const { myDonations, cancelRecurring, loading, error } = useCampaigns()
   const [yearFilter, setYearFilter] = useState('all')
@@ -81,7 +91,7 @@ export default function MyGiving() {
 
     // CSV Rows
     const rows = filtered.map((d) => {
-      const date = formatDate(d.date)
+      const date = `="${formatExportDate(d.date)}"`
       const title = `"${String(d.campaignTitle || 'Campaign').replace(/"/g, '""')}"`
       const amount = d.amount
       const status = d.status

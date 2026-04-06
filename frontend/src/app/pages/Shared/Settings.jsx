@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff, Check, Database, AlertTriangle, Paperclip } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
 import { getAvatarDataUrl } from '../../utils/avatar'
 import api from '../../utils/api'
+import { useNavigate } from 'react-router-dom'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 const Toggle = ({ checked, onChange }) => (
@@ -227,14 +228,108 @@ const normalizeSettingsRole = (rawRole) => {
 
 const SUPPLEMENTAL_PROFILE_FIELDS = ['industry', 'degree', 'timezone', 'program', 'currentYear', 'advisor', 'cgpa']
 
+const DEFAULT_PORTAL_SETTINGS = {
+  siteName: 'Alumni Portal',
+  maintenanceMode: false,
+  registrationOpen: true,
+  emailApproval: true,
+  publicDirectory: true,
+  allowStudentMessages: true,
+  jobPostingEnabled: true,
+  eventsEnabled: true,
+}
+
+const DEFAULT_NOTIFICATIONS = {
+  emailDigest: true,
+  push: false,
+  messages: true,
+  eventReminders: true,
+  newConnections: true,
+  jobAlerts: false,
+  mentoringRequests: true,
+  mentorMatchAlerts: true,
+  applicationUpdates: true,
+  deadlineReminders: true,
+  newRegistrations: true,
+  pendingApprovals: true,
+  weeklyReport: true,
+  securityAlerts: true,
+  contentReports: true,
+  systemUpdates: false,
+  adminActionLog: true,
+  systemHealthAlerts: true,
+}
+
+const DEFAULT_PRIVACY = {
+  showEmail: false,
+  showPhone: false,
+  showInDirectory: true,
+  allowMessages: true,
+  openToMentoring: true,
+  showCurrentCompany: true,
+  showCareerInterests: true,
+  allowAlumniContact: true,
+}
+
+const DEFAULT_PROFESSIONAL = {
+  openToJobs: false,
+  showCompany: false,
+}
+
+const DEFAULT_MENTORSHIP_PREFS = {
+  openToMentoring: true,
+  areas: ['Career Advice', 'Resume Review', 'Interview Prep'],
+  menteeTypes: ['Undergraduates', 'Recent Grads'],
+  availabilitySlots: ['Weekends only', 'Evenings PST'],
+  mode: ['Online Video Calls'],
+  maxMentees: 2,
+}
+
+const DEFAULT_CAREER_INTERESTS = ['Internships', 'Networking']
+const DEFAULT_STUDENT_MENTORING_TOPICS = ['Resume Review', 'Career Path Planning']
+
+const DEFAULT_USER_ACCESS = {
+  alumniCanPostJobListings: true,
+  alumniCanSendConnectionInvites: false,
+  studentsCanViewJobBoard: true,
+  studentsCanRequestMentors: true,
+  studentsCanMessageAlumni: true,
+  adminsCanExportUserData: true,
+  autoVerifyInstituteEmailDomain: false,
+}
+
+const DEFAULT_MODERATION = {
+  autoApproveAlumniJobPosts: true,
+  autoApproveEventListings: false,
+  allowAnonymousDirectoryBrowsing: false,
+}
+
+const DEFAULT_ADMIN_PERMISSIONS = {
+  adminsCanApproveRegistrations: true,
+  adminsCanPostAnnouncements: true,
+  adminsCanExportReports: false,
+}
+
+const DEFAULT_DATA_PREFERENCES = {
+  retention: '12 months',
+  automatedDailyBackups: true,
+  anonymiseDeletedAccounts: true,
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Settings Component
 // ═══════════════════════════════════════════════════════════════════════════════
 const Settings = () => {
-  const { user, updateProfileInSession } = useAuth()
+  const { user, updateProfileInSession, logout } = useAuth()
+  const navigate = useNavigate()
   const role = normalizeSettingsRole(user?.role)
   const backendProfile = user?.profile || {}
   const backendUser = backendProfile.user || {}
+  const backendSupplemental = backendProfile.supplemental_profile || {}
+  const backendProfessional = backendProfile.professional_preferences || {}
+  const backendMentorship = backendProfile.mentorship_preferences || {}
+  const backendNotifications = backendProfile.notification_preferences || {}
+  const backendPrivacy = backendProfile.privacy_preferences || {}
   const nameFromBackend = `${backendUser.first_name || ''} ${backendUser.last_name || ''}`.trim()
   const currentUser = {
     name: nameFromBackend || user?.name || '',
@@ -248,118 +343,67 @@ const Settings = () => {
   const [savedSection, setSavedSection] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [sectionSaving, setSectionSaving] = useState('')
+  const [activeSessions, setActiveSessions] = useState([])
+  const [auditLog, setAuditLog] = useState([])
+  const [adminAccounts, setAdminAccounts] = useState([])
   const [avatarUrl, setAvatarUrl] = useState(
     currentUser.avatar || getAvatarDataUrl(currentUser.name || 'User')
   )
   const fileInputRef = useRef(null)
 
-  const flashSave = (key) => {
+  const markSaved = (key) => {
     setSavedSection(key)
     setTimeout(() => setSavedSection(null), 2500)
   }
 
-  const localProfileKey = user?.id ? `settings_profile_${user.id}` : null
-  const getLocalProfile = () => {
-    if (!localProfileKey) return {}
-    try {
-      const raw = localStorage.getItem(localProfileKey)
-      return raw ? JSON.parse(raw) : {}
-    } catch {
-      return {}
-    }
-  }
-  const saveLocalProfile = (value) => {
-    if (!localProfileKey) return
-    const supplementalOnly = SUPPLEMENTAL_PROFILE_FIELDS.reduce((acc, key) => {
-      acc[key] = value[key] ?? ''
-      return acc
-    }, {})
-    supplementalOnly.avatar = value.avatar ?? ''
-    localStorage.setItem(localProfileKey, JSON.stringify(supplementalOnly))
-  }
-
   // ── Profile state ─────────────────────────────────────────────────────────
   const [profile, setProfile] = useState({
-    ...{
-      name: currentUser.name || '',
-      email: currentUser.email || '',
-      phone: backendProfile.phone || '',
-      location: [backendProfile.city, backendProfile.country].filter(Boolean).join(', '),
-      bio: backendProfile.bio || '',
-      headline: backendProfile.headline || '',
-      company: backendProfile.current_company || '',
-      linkedin: backendProfile.linkedin_url || '',
-      industry: '',
-      graduationYear: backendProfile.graduation_year ? String(backendProfile.graduation_year) : '',
-      department: backendProfile.department || '',
-      degree: '',
-      timezone: '',
-      program: '',
-      studentId: backendProfile.student_id || '',
-      currentYear: '',
-      advisor: '',
-      cgpa: '',
-      adminRole: role === 'SA' ? 'Super Admin' : 'Portal Admin',
-      instituteEmail: currentUser.email || '',
-      department_admin: backendProfile.department || '',
-    },
-    ...getLocalProfile(),
+    name: currentUser.name || '',
+    email: currentUser.email || '',
+    phone: backendProfile.phone || '',
+    location: [backendProfile.city, backendProfile.country].filter(Boolean).join(', '),
+    bio: backendProfile.bio || '',
+    headline: backendProfile.headline || '',
+    company: backendProfile.current_company || '',
+    linkedin: backendProfile.linkedin_url || '',
+    industry: backendSupplemental.industry || '',
+    graduationYear: backendProfile.graduation_year ? String(backendProfile.graduation_year) : '',
+    department: backendProfile.department || '',
+    degree: backendSupplemental.degree || '',
+    timezone: backendSupplemental.timezone || '',
+    program: backendSupplemental.program || '',
+    studentId: backendProfile.student_id || '',
+    currentYear: backendSupplemental.currentYear || '',
+    advisor: backendSupplemental.advisor || '',
+    cgpa: backendSupplemental.cgpa || '',
+    adminRole: role === 'SA' ? 'Super Admin' : 'Portal Admin',
+    instituteEmail: currentUser.email || '',
+    department_admin: backendProfile.department || '',
   })
   const sp = (field) => (e) => setProfile((p) => ({ ...p, [field]: e.target.value }))
 
   // ── Portal state ──────────────────────────────────────────────────────────
-  const [portal, setPortal] = useState({
-    siteName: 'Alumni Portal',
-    maintenanceMode: false,
-    registrationOpen: true,
-    emailApproval: true,
-    publicDirectory: true,
-    allowStudentMessages: true,
-    jobPostingEnabled: true,
-    eventsEnabled: true,
-  })
+  const [portal, setPortal] = useState(DEFAULT_PORTAL_SETTINGS)
+  const [userAccess, setUserAccess] = useState(DEFAULT_USER_ACCESS)
+  const [moderation, setModeration] = useState(DEFAULT_MODERATION)
+  const [adminPermissions, setAdminPermissions] = useState(DEFAULT_ADMIN_PERMISSIONS)
+  const [dataPreferences, setDataPreferences] = useState(DEFAULT_DATA_PREFERENCES)
   const tp = (field) => () => setPortal((p) => ({ ...p, [field]: !p[field] }))
 
   // ── Notifications state ───────────────────────────────────────────────────
-  const [notif, setNotif] = useState({
-    emailDigest: true,
-    push: false,
-    messages: true,
-    eventReminders: true,
-    newConnections: true,
-    jobAlerts: false,
-    mentoringRequests: true,
-    mentorMatchAlerts: true,
-    applicationUpdates: true,
-    deadlineReminders: true,
-    newRegistrations: true,
-    pendingApprovals: true,
-    weeklyReport: true,
-    securityAlerts: true,
-    contentReports: true,
-    systemUpdates: false,
-    adminActionLog: true,
-    systemHealthAlerts: true,
-  })
+  const [notif, setNotif] = useState({ ...DEFAULT_NOTIFICATIONS, ...backendNotifications })
   const tn = (field) => () => setNotif((n) => ({ ...n, [field]: !n[field] }))
 
   // ── Privacy state ─────────────────────────────────────────────────────────
-  const [privacy, setPrivacy] = useState({
-    showEmail: false,
-    showPhone: false,
-    showInDirectory: true,
-    allowMessages: true,
-    openToMentoring: true,
-    showCurrentCompany: true,
-    showCareerInterests: true,
-    allowAlumniContact: true,
-  })
+  const [privacy, setPrivacy] = useState({ ...DEFAULT_PRIVACY, ...backendPrivacy })
   const tpv = (field) => () => setPrivacy((p) => ({ ...p, [field]: !p[field] }))
 
   // ── Professional state ────────────────────────────────────────────────────
   const [pro, setPro] = useState({
-    openToJobs: false,
-    showCompany: Boolean(backendProfile.current_company),
+    openToJobs: Boolean(backendProfessional.openToJobs || backendProfile.willing_to_hire),
+    showCompany: Boolean(backendProfessional.showCompany ?? backendProfile.current_company),
     skills: Array.isArray(backendProfile.skills)
       ? backendProfile.skills.join(', ')
       : (backendProfile.skills ?? ''),
@@ -367,22 +411,294 @@ const Settings = () => {
 
   // ── Mentorship state ──────────────────────────────────────────────────────
   const [mentorshipPrefs, setMentorshipPrefs] = useState({
-    openToMentoring: true,
-    areas: ['Career Advice', 'Resume Review', 'Interview Prep'],
-    menteeTypes: ['Undergraduates', 'Recent Grads'],
-    availabilitySlots: ['Weekends only', 'Evenings PST'],
-    mode: ['Online Video Calls'],
-    maxMentees: 2,
+    ...DEFAULT_MENTORSHIP_PREFS,
+    ...backendMentorship,
+    openToMentoring: Boolean(
+      backendMentorship.openToMentoring ?? backendProfile.willing_to_mentor ?? true
+    ),
   })
 
   // ── Password state ────────────────────────────────────────────────────────
   const [pw, setPw] = useState({ current: '', newPw: '', confirm: '' })
 
   // ── Academic interest state (Student) ─────────────────────────────────────
-  const [careerInterests, setCareerInterests] = useState(['Internships', 'Networking'])
-  const [mentoringPrefs, setMentoringPrefs] = useState(['Resume Review', 'Career Path Planning'])
+  const [careerInterests, setCareerInterests] = useState(
+    backendSupplemental.careerInterests || DEFAULT_CAREER_INTERESTS
+  )
+  const [mentoringPrefs, setMentoringPrefs] = useState(
+    backendSupplemental.mentoringTopics || DEFAULT_STUDENT_MENTORING_TOPICS
+  )
   const toggleList = (list, setList, item) =>
     setList((l) => (l.includes(item) ? l.filter((i) => i !== item) : [...l, item]))
+
+  useEffect(() => {
+    setAvatarUrl(currentUser.avatar || getAvatarDataUrl(currentUser.name || 'User'))
+  }, [currentUser.avatar, currentUser.name])
+
+  useEffect(() => {
+    const fetchSettingsData = async () => {
+      try {
+        const [sessionsResponse, portalResponse, auditResponse, profilesResponse] = await Promise.all([
+          api.get('/auth/sessions/'),
+          role === 'Admin' || role === 'SA' ? api.get('/portal-settings/') : Promise.resolve(null),
+          role === 'Admin' || role === 'SA' ? api.get('/audit-logs/') : Promise.resolve(null),
+          role === 'Admin' || role === 'SA' ? api.get('/profiles/') : Promise.resolve(null),
+        ])
+
+        setActiveSessions(
+          (Array.isArray(sessionsResponse?.data) ? sessionsResponse.data : []).map((session) => ({
+            ...session,
+            time: session.current
+              ? 'Active now'
+              : new Date(session.last_active_at).toLocaleString(),
+          }))
+        )
+
+        if (portalResponse?.data) {
+          const portalData = Array.isArray(portalResponse.data)
+            ? portalResponse.data[0]
+            : portalResponse.data
+          if (portalData) {
+            setPortal({
+              siteName: portalData.site_name ?? DEFAULT_PORTAL_SETTINGS.siteName,
+              maintenanceMode: Boolean(portalData.maintenance_mode),
+              registrationOpen: Boolean(portalData.registration_open),
+              emailApproval: Boolean(portalData.email_approval),
+              publicDirectory: Boolean(portalData.public_directory),
+              allowStudentMessages: Boolean(portalData.allow_student_messages),
+              jobPostingEnabled: Boolean(portalData.job_posting_enabled),
+              eventsEnabled: Boolean(portalData.events_enabled),
+            })
+            setUserAccess({ ...DEFAULT_USER_ACCESS, ...(portalData.role_permissions || {}) })
+            setModeration({ ...DEFAULT_MODERATION, ...(portalData.moderation_settings || {}) })
+            setAdminPermissions({
+              ...DEFAULT_ADMIN_PERMISSIONS,
+              ...(portalData.admin_permissions || {}),
+            })
+            setDataPreferences({
+              ...DEFAULT_DATA_PREFERENCES,
+              ...(portalData.data_preferences || {}),
+            })
+          }
+        }
+
+        if (auditResponse?.data) {
+          setAuditLog(Array.isArray(auditResponse.data) ? auditResponse.data : auditResponse.data.results || [])
+        }
+
+        if (profilesResponse?.data) {
+          const allProfiles = Array.isArray(profilesResponse.data)
+            ? profilesResponse.data
+            : profilesResponse.data.results || []
+          setAdminAccounts(
+            allProfiles.filter((item) => item.role === 'admin').map((item) => ({
+              id: item.id,
+              name:
+                `${item.user?.first_name || ''} ${item.user?.last_name || ''}`.trim() ||
+                item.user?.email ||
+                'Admin',
+              email: item.user?.email || '',
+              avatar: item.avatar || getAvatarDataUrl(item.user?.email || 'Admin'),
+              active: true,
+            }))
+          )
+        }
+      } catch (error) {
+        console.error('Failed to load settings data', error)
+        setSaveError('Failed to load some settings data from the backend.')
+      }
+    }
+
+    fetchSettingsData()
+  }, [role])
+
+  const refreshProfileSession = async () => {
+    const refreshed = await api.get('/auth/me/')
+    updateProfileInSession?.(refreshed.data)
+    return refreshed.data
+  }
+
+  const saveProfileSection = async (saveKey, overrides = {}) => {
+    if (!backendProfile.id) return
+
+    setSaveError('')
+    setSectionSaving(saveKey)
+    try {
+      const locationParts = String(profile.location || '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+      const city = locationParts[0] || ''
+      const country = locationParts.slice(1).join(', ')
+      const nameParts = String(profile.name || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ')
+      const parsedGradYear = Number.parseInt(profile.graduationYear, 10)
+
+      const payload = {
+        first_name: firstName,
+        last_name: lastName,
+        email: String((role === 'Admin' || role === 'SA' ? profile.instituteEmail : profile.email) || '').trim(),
+        phone: String(profile.phone || '').trim(),
+        city,
+        country,
+        bio: String(profile.bio || '').trim(),
+        headline: String(profile.headline || '').trim(),
+        current_company: String(profile.company || '').trim(),
+        linkedin_url: String(profile.linkedin || '').trim(),
+        department: String(
+          (role === 'Admin' || role === 'SA' ? profile.department_admin : profile.department) || ''
+        ).trim(),
+        graduation_year: Number.isNaN(parsedGradYear) ? null : parsedGradYear,
+        student_id: String(profile.studentId || '').trim(),
+        avatar: avatarUrl || '',
+        skills: String(pro.skills || '')
+          .split(',')
+          .map((skill) => skill.trim())
+          .filter(Boolean),
+        willing_to_hire: Boolean(pro.openToJobs),
+        willing_to_mentor: Boolean(mentorshipPrefs.openToMentoring),
+        supplemental_profile: {
+          industry: String(profile.industry || '').trim(),
+          degree: String(profile.degree || '').trim(),
+          timezone: String(profile.timezone || '').trim(),
+          program: String(profile.program || '').trim(),
+          currentYear: String(profile.currentYear || '').trim(),
+          advisor: String(profile.advisor || '').trim(),
+          cgpa: String(profile.cgpa || '').trim(),
+          careerInterests,
+          mentoringTopics: mentoringPrefs,
+        },
+        professional_preferences: {
+          openToJobs: Boolean(pro.openToJobs),
+          showCompany: Boolean(pro.showCompany),
+        },
+        mentorship_preferences: {
+          ...mentorshipPrefs,
+          openToMentoring: Boolean(mentorshipPrefs.openToMentoring),
+        },
+        notification_preferences: notif,
+        privacy_preferences: privacy,
+        ...overrides,
+      }
+
+      await api.patch(`/profiles/${backendProfile.id}/`, payload)
+      await refreshProfileSession()
+      markSaved(saveKey)
+    } catch (error) {
+      console.error('Failed to save settings section', error)
+      setSaveError(error.response?.data?.detail || 'Failed to save settings changes.')
+    } finally {
+      setSectionSaving('')
+    }
+  }
+
+  const savePortalSection = async (saveKey, extraPayload = {}) => {
+    setSaveError('')
+    setSectionSaving(saveKey)
+    try {
+      await api.patch('/portal-settings/1/', {
+        site_name: portal.siteName,
+        maintenance_mode: portal.maintenanceMode,
+        registration_open: portal.registrationOpen,
+        email_approval: portal.emailApproval,
+        public_directory: portal.publicDirectory,
+        allow_student_messages: portal.allowStudentMessages,
+        job_posting_enabled: portal.jobPostingEnabled,
+        events_enabled: portal.eventsEnabled,
+        role_permissions: userAccess,
+        moderation_settings: moderation,
+        admin_permissions: adminPermissions,
+        data_preferences: dataPreferences,
+        notification_preferences: notif,
+        ...extraPayload,
+      })
+      const auditResponse = await api.get('/audit-logs/')
+      setAuditLog(Array.isArray(auditResponse.data) ? auditResponse.data : auditResponse.data.results || [])
+      markSaved(saveKey)
+    } catch (error) {
+      console.error('Failed to save portal settings', error)
+      setSaveError(error.response?.data?.detail || 'Failed to save portal settings.')
+    } finally {
+      setSectionSaving('')
+    }
+  }
+
+  const handlePasswordChange = async () => {
+    setSaveError('')
+    setSectionSaving('password')
+    try {
+      await api.post('/auth/change-password/', {
+        current_password: pw.current,
+        new_password: pw.newPw,
+        confirm_password: pw.confirm,
+      })
+      setPw({ current: '', newPw: '', confirm: '' })
+      markSaved('password')
+    } catch (error) {
+      console.error('Failed to change password', error)
+      const backendErrors = error.response?.data
+      const firstError = typeof backendErrors === 'object'
+        ? Object.values(backendErrors)[0]?.[0]
+        : null
+      setSaveError(firstError || 'Failed to change password.')
+    } finally {
+      setSectionSaving('')
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    setSaveError('')
+    setSectionSaving('delete')
+    try {
+      await api.delete('/auth/delete-account/')
+      await logout()
+      navigate('/login')
+    } catch (error) {
+      console.error('Failed to delete account', error)
+      setSaveError('Failed to delete account.')
+    } finally {
+      setSectionSaving('')
+    }
+  }
+
+  const flashSave = async (key) => {
+    const portalKeys = new Set(['portal', 'features', 'moderation', 'admin_permissions', 'data'])
+    const profileKeys = new Set([
+      'notif_general',
+      'notif_alumni',
+      'notif_student',
+      'notif_admin',
+      'notif_sa',
+      'privacy_vis',
+      'privacy_comm',
+      'mentorshipGeneral',
+      'mentorshipAreas',
+      'mentorshipTypes',
+      'careerInterests',
+      'mentoringTopics',
+      'professional_visibility',
+      'professional_skills',
+    ])
+
+    if (key === 'password') {
+      await handlePasswordChange()
+      return
+    }
+    if (portalKeys.has(key)) {
+      await savePortalSection(key)
+      return
+    }
+    if (profileKeys.has(key)) {
+      await saveProfileSection(key)
+      return
+    }
+
+    markSaved(key)
+  }
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0]
@@ -400,7 +716,6 @@ const Settings = () => {
       }
       setUploadError('')
       setAvatarUrl(nextAvatar)
-      saveLocalProfile({ ...profile, avatar: nextAvatar })
       updateProfileInSession?.({ ...backendProfile, avatar: nextAvatar })
     }
     reader.onerror = () => {
@@ -410,63 +725,7 @@ const Settings = () => {
   }
 
   const persistProfileChanges = async (saveKey) => {
-    if (!backendProfile.id) return
-
-    const locationParts = String(profile.location || '')
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean)
-    const city = locationParts[0] || ''
-    const country = locationParts.slice(1).join(', ')
-
-    const nameParts = String(profile.name || '')
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-    const firstName = nameParts[0] || ''
-    const lastName = nameParts.slice(1).join(' ')
-
-    const parsedGradYear = Number.parseInt(profile.graduationYear, 10)
-
-    const payload = {
-      first_name: firstName,
-      last_name: lastName,
-      email: String(profile.email || '').trim(),
-      phone: String(profile.phone || '').trim(),
-      city,
-      country,
-      bio: String(profile.bio || '').trim(),
-      headline: String(profile.headline || '').trim(),
-      current_company: String(profile.company || '').trim(),
-      linkedin_url: String(profile.linkedin || '').trim(),
-      department: String(profile.department || '').trim(),
-      graduation_year: Number.isNaN(parsedGradYear) ? null : parsedGradYear,
-      student_id: String(profile.studentId || '').trim(),
-      skills: String(pro.skills || '')
-        .split(',')
-        .map((skill) => skill.trim())
-        .filter(Boolean),
-      willing_to_hire: Boolean(pro.openToJobs),
-    }
-
-    const localAvatarValue = avatarUrl || ''
-    const shouldPersistAvatarRemotely =
-      localAvatarValue.startsWith('http://') || localAvatarValue.startsWith('https://')
-
-    if (shouldPersistAvatarRemotely) {
-      payload.avatar = localAvatarValue
-    }
-
-    await api.patch(`/profiles/${backendProfile.id}/`, payload)
-    const refreshed = await api.get('/auth/me/')
-    const nextProfileForSession = {
-      ...refreshed.data,
-      avatar: shouldPersistAvatarRemotely ? refreshed.data?.avatar || localAvatarValue : localAvatarValue,
-    }
-
-    updateProfileInSession?.(nextProfileForSession)
-    saveLocalProfile({ ...profile, avatar: localAvatarValue })
-    flashSave(saveKey)
+    await saveProfileSection(saveKey)
   }
 
   // ── Avatar block (shared) ─────────────────────────────────────────────────
@@ -752,7 +1011,7 @@ const Settings = () => {
           noBorder
           title="Career Visibility"
           description="Control how your professional presence appears to students and recruiters."
-          onSave={() => persistProfileChanges('pro')}
+          onSave={() => flashSave('professional_visibility')}
         >
           <div className="divide-y divide-gray-100">
             <ToggleItem
@@ -980,7 +1239,7 @@ const Settings = () => {
         noBorder
         title="Portal Configuration"
         description="Global settings that apply to all users."
-        onSave={() => flashSave('portal')}
+        onSave={() => savePortalSection('portal')}
       >
         <Field
           label="Portal name"
@@ -1012,7 +1271,7 @@ const Settings = () => {
       <FormSection
         title="Feature Controls"
         description="Enable or disable platform features for all users."
-        onSave={() => flashSave('features')}
+        onSave={() => savePortalSection('features')}
       >
         <div className="divide-y divide-gray-100">
           <ToggleItem
@@ -1069,39 +1328,39 @@ const Settings = () => {
   const renderUsers = () => {
     const permissions = [
       {
+        key: 'alumniCanPostJobListings',
         label: 'Alumni can post job listings',
         desc: 'Verified alumni may submit jobs to the board.',
-        def: true,
       },
       {
+        key: 'alumniCanSendConnectionInvites',
         label: 'Alumni can send connection invites',
         desc: 'Alumni can invite contacts to the portal.',
-        def: false,
       },
       {
+        key: 'studentsCanViewJobBoard',
         label: 'Students can view job board',
         desc: 'Students have read access to all job listings.',
-        def: true,
       },
       {
+        key: 'studentsCanRequestMentors',
         label: 'Students can request mentors',
         desc: 'Students may initiate mentor pairing requests.',
-        def: true,
       },
       {
+        key: 'studentsCanMessageAlumni',
         label: 'Students can message alumni',
         desc: 'Students can start direct conversations.',
-        def: true,
       },
       {
+        key: 'adminsCanExportUserData',
         label: 'Admins can export user data',
         desc: 'Admins may download CSV exports of member data.',
-        def: true,
       },
       {
+        key: 'autoVerifyInstituteEmailDomain',
         label: 'Auto-verify institute email domain',
         desc: 'Accounts with matching domain are auto-approved.',
-        def: false,
       },
     ]
     return (
@@ -1110,6 +1369,7 @@ const Settings = () => {
           noBorder
           title="Role Permissions"
           description="Set default capabilities for each user role."
+          onSave={() => savePortalSection('role_permissions')}
         >
           <div className="divide-y divide-gray-100">
             {permissions.map((item) => (
@@ -1117,8 +1377,10 @@ const Settings = () => {
                 key={item.label}
                 label={item.label}
                 description={item.desc}
-                checked={item.def}
-                onChange={() => {}}
+                checked={Boolean(userAccess[item.key])}
+                onChange={() =>
+                  setUserAccess((current) => ({ ...current, [item.key]: !current[item.key] }))
+                }
               />
             ))}
           </div>
@@ -1132,20 +1394,35 @@ const Settings = () => {
             <ToggleItem
               label="Auto-approve alumni job posts"
               description="Skip manual review for verified alumni postings."
-              checked={true}
-              onChange={() => {}}
+              checked={moderation.autoApproveAlumniJobPosts}
+              onChange={() =>
+                setModeration((current) => ({
+                  ...current,
+                  autoApproveAlumniJobPosts: !current.autoApproveAlumniJobPosts,
+                }))
+              }
             />
             <ToggleItem
               label="Auto-approve event listings"
               description="Admins can post events without secondary review."
-              checked={false}
-              onChange={() => {}}
+              checked={moderation.autoApproveEventListings}
+              onChange={() =>
+                setModeration((current) => ({
+                  ...current,
+                  autoApproveEventListings: !current.autoApproveEventListings,
+                }))
+              }
             />
             <ToggleItem
               label="Allow anonymous directory browsing"
               description="Non-logged-in visitors can view alumni directory."
-              checked={false}
-              onChange={() => {}}
+              checked={moderation.allowAnonymousDirectoryBrowsing}
+              onChange={() =>
+                setModeration((current) => ({
+                  ...current,
+                  allowAnonymousDirectoryBrowsing: !current.allowAnonymousDirectoryBrowsing,
+                }))
+              }
             />
           </div>
         </FormSection>
@@ -1157,26 +1434,6 @@ const Settings = () => {
   // ADMINS — SA only
   // ──────────────────────────────────────────────────────────────────────────
   const renderAdmins = () => {
-    const admins = [
-      {
-        name: 'Dr. Sarah Chen',
-        email: 'sarah.chen@institution.edu',
-        avatar: getAvatarDataUrl('Dr. Sarah Chen'),
-        active: true,
-      },
-      {
-        name: 'James Patel',
-        email: 'j.patel@institution.edu',
-        avatar: getAvatarDataUrl('James Patel'),
-        active: true,
-      },
-      {
-        name: 'Maria Santos',
-        email: 'm.santos@institution.edu',
-        avatar: getAvatarDataUrl('Maria Santos'),
-        active: false,
-      },
-    ]
     return (
       <div className="space-y-8">
         <FormSection
@@ -1185,7 +1442,7 @@ const Settings = () => {
           description="Manage who has administrative access to the portal."
         >
           <ul role="list" className="divide-y divide-gray-100">
-            {admins.map((admin) => (
+            {adminAccounts.map((admin) => (
               <li key={admin.email} className="flex items-center justify-between gap-4 py-4">
                 <div className="flex items-center gap-3">
                   <img src={admin.avatar} alt={admin.name} className="h-9 w-9 rounded-full" />
@@ -1199,43 +1456,51 @@ const Settings = () => {
                     {admin.active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <div className="flex gap-2">
-                  <button className="rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors">
-                    Edit
-                  </button>
-                  <button className="rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-red-300 hover:bg-red-50 transition-colors">
-                    Revoke
-                  </button>
-                </div>
               </li>
             ))}
           </ul>
-          <button className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors">
-            + Invite new admin
-          </button>
+          {!adminAccounts.length && (
+            <p className="text-sm text-gray-500">No administrator accounts found in the database.</p>
+          )}
         </FormSection>
         <FormSection
           title="Admin Permissions"
           description="Set what actions administrators can perform."
+          onSave={() => savePortalSection('admin_permissions')}
         >
           <div className="divide-y divide-gray-100">
             <ToggleItem
               label="Admins can approve registrations"
               description="Allow admins to approve or reject new member sign-ups."
-              checked={true}
-              onChange={() => {}}
+              checked={adminPermissions.adminsCanApproveRegistrations}
+              onChange={() =>
+                setAdminPermissions((current) => ({
+                  ...current,
+                  adminsCanApproveRegistrations: !current.adminsCanApproveRegistrations,
+                }))
+              }
             />
             <ToggleItem
               label="Admins can post announcements"
               description="Allow admins to post platform-wide announcements."
-              checked={true}
-              onChange={() => {}}
+              checked={adminPermissions.adminsCanPostAnnouncements}
+              onChange={() =>
+                setAdminPermissions((current) => ({
+                  ...current,
+                  adminsCanPostAnnouncements: !current.adminsCanPostAnnouncements,
+                }))
+              }
             />
             <ToggleItem
               label="Admins can export reports"
               description="Allow admins to download platform usage reports."
-              checked={false}
-              onChange={() => {}}
+              checked={adminPermissions.adminsCanExportReports}
+              onChange={() =>
+                setAdminPermissions((current) => ({
+                  ...current,
+                  adminsCanExportReports: !current.adminsCanExportReports,
+                }))
+              }
             />
           </div>
         </FormSection>
@@ -1247,12 +1512,6 @@ const Settings = () => {
   // DATA & AUDIT — SA only
   // ──────────────────────────────────────────────────────────────────────────
   const renderData = () => {
-    const auditLog = [
-      { action: 'User approved', actor: 'Dr. Sarah Chen', time: '2 min ago' },
-      { action: 'Job post removed', actor: 'James Patel', time: '1 hr ago' },
-      { action: 'Portal name updated', actor: 'You', time: '3 hrs ago' },
-      { action: 'New admin invited', actor: 'You', time: 'Yesterday' },
-    ]
     return (
       <div className="space-y-8">
         <FormSection
@@ -1264,43 +1523,54 @@ const Settings = () => {
           <SelectField
             label="Data retention period"
             id="retention"
-            value="12 months"
-            onChange={() => {}}
+            value={dataPreferences.retention}
+            onChange={(e) =>
+              setDataPreferences((current) => ({ ...current, retention: e.target.value }))
+            }
             options={['3 months', '6 months', '12 months', '24 months', 'Indefinite']}
           />
           <div className="divide-y divide-gray-100">
             <ToggleItem
               label="Automated daily backups"
               description="Back up the database every 24 hours automatically."
-              checked={true}
-              onChange={() => {}}
+              checked={dataPreferences.automatedDailyBackups}
+              onChange={() =>
+                setDataPreferences((current) => ({
+                  ...current,
+                  automatedDailyBackups: !current.automatedDailyBackups,
+                }))
+              }
             />
             <ToggleItem
               label="Anonymise deleted accounts"
               description="Replace PII with anonymised data on account deletion."
-              checked={true}
-              onChange={() => {}}
+              checked={dataPreferences.anonymiseDeletedAccounts}
+              onChange={() =>
+                setDataPreferences((current) => ({
+                  ...current,
+                  anonymiseDeletedAccounts: !current.anonymiseDeletedAccounts,
+                }))
+              }
             />
           </div>
-          <button className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors">
-            Export all data (CSV)
-          </button>
         </FormSection>
         <FormSection
           title="Audit Log"
           description="Recent administrative actions across the platform."
         >
           <ul role="list" className="divide-y divide-gray-100">
-            {auditLog.map((entry, i) => (
-              <li key={i} className="flex items-center justify-between py-3.5">
+            {auditLog.map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between py-3.5">
                 <div className="flex items-center gap-3">
                   <Database size={15} className="text-gray-400 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{entry.action}</p>
-                    <p className="text-xs text-gray-500">{entry.actor}</p>
+                    <p className="text-xs text-gray-500">{entry.actor_name || 'System'}</p>
                   </div>
                 </div>
-                <span className="text-xs text-gray-400">{entry.time}</span>
+                <span className="text-xs text-gray-400">
+                  {entry.created_at ? new Date(entry.created_at).toLocaleString() : 'Unknown'}
+                </span>
               </li>
             ))}
           </ul>
@@ -1683,7 +1953,7 @@ const Settings = () => {
         noBorder
         title="Change Password"
         description="Update your password to keep your account secure."
-        onSave={() => flashSave('password')}
+        onSave={handlePasswordChange}
       >
         <Field
           label="Current password"
@@ -1713,12 +1983,9 @@ const Settings = () => {
         title="Active Sessions"
         description="Devices currently signed in to your account."
       >
-        {[
-          { device: 'Chrome on macOS', ip: '192.168.1.24', time: 'Active now' },
-          { device: 'Safari on iPhone', ip: '10.0.0.12', time: '2 days ago' },
-        ].map((s) => (
+        {activeSessions.map((s) => (
           <div
-            key={s.device}
+            key={s.id}
             className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
           >
             <div>
@@ -1727,11 +1994,12 @@ const Settings = () => {
                 {s.ip} · {s.time}
               </p>
             </div>
-            <button className="text-xs font-medium text-red-600 hover:text-red-500 transition-colors">
-              Revoke
-            </button>
+            <span className="text-xs font-medium text-emerald-600">
+              {s.current ? 'Current session' : 'Recorded'}
+            </span>
           </div>
         ))}
+        {!activeSessions.length && <p className="text-sm text-gray-500">No active sessions found.</p>}
       </FormSection>
 
       {(role === 'Alumni' || role === 'Student') && (
@@ -1759,7 +2027,11 @@ const Settings = () => {
                 >
                   Cancel
                 </button>
-                <button className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500 transition-colors">
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500 transition-colors"
+                >
                   Confirm deletion
                 </button>
               </div>
@@ -1769,32 +2041,25 @@ const Settings = () => {
       )}
       {(role === 'Admin' || role === 'SA') && (
         <FormSection
-          title="Remove admin access"
-          description="Request to have your administrator role removed. A Super Admin must action this request."
+          title="Administrator Access"
+          description="Administrator role changes are tracked through central user management."
         >
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm text-amber-800">
-              Admins cannot delete their own accounts. Please contact a Super Admin.
+              Use the admin user management workflow for role changes and account access reviews.
             </p>
-            <button className="mt-3 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-500 transition-colors">
-              Request role removal
-            </button>
           </div>
         </FormSection>
       )}
       {role === 'SA' && (
         <FormSection
-          title="Transfer super admin role"
-          description="Before leaving, transfer your Super Admin role to another administrator."
+          title="Super Admin Control"
+          description="Super admin changes should be performed directly in the admin user management flow."
         >
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm text-amber-800">
-              There must always be at least one Super Admin. Assign a new SA before you can step
-              down.
+              There must always be at least one privileged administrator assigned to the portal.
             </p>
-            <button className="mt-3 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-500 transition-colors">
-              Transfer role
-            </button>
           </div>
         </FormSection>
       )}
@@ -1852,6 +2117,16 @@ const Settings = () => {
 
       {/* ── Page Content ─────────────────────────────────────────────────── */}
       <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+        {saveError && (
+          <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {saveError}
+          </div>
+        )}
+        {sectionSaving && (
+          <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+            Saving changes...
+          </div>
+        )}
         {PANELS[activeSection]?.()}
       </main>
     </div>

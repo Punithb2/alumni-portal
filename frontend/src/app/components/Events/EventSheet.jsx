@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { X, Calendar, MapPin, Users, Ticket, CheckCircle2, MoreVertical } from 'lucide-react'
 import clsx from 'clsx'
-import { useEvents } from '../../hooks/useEvents'
-import useAuth from '../../hooks/useAuth'
 
-export default function EventSheet({ event, isOpen, onClose }) {
-  const { registerUser } = useEvents()
-  const { user } = useAuth()
+export default function EventSheet({ event, isOpen, onClose, onRegister, onCancelRsvp }) {
   const [isSuccess, setIsSuccess] = useState(false)
   const [showPaymentAlert, setShowPaymentAlert] = useState(false)
+  const [currentEvent, setCurrentEvent] = useState(event)
+
+  useEffect(() => {
+    setCurrentEvent(event)
+  }, [event])
 
   useEffect(() => {
     if (isOpen) {
@@ -25,17 +26,16 @@ export default function EventSheet({ event, isOpen, onClose }) {
     }
   }, [isOpen])
 
-  if (!isOpen && !event) return null
-  if (!event) return null
+  if (!isOpen && !currentEvent) return null
+  if (!currentEvent) return null
 
-  const isFree = event.price === 0 || !event.price
-  const isSoldOut = event.capacity && event.attendees >= event.capacity
-  const currentUser = user || { id: 'u1', name: 'Demo Alumni' }
-  const hasRegistered = event.registeredUsers?.some((u) => u.id === currentUser.id)
+  const isFree = currentEvent.price === 0 || !currentEvent.price
+  const isSoldOut = currentEvent.capacity && currentEvent.attendees >= currentEvent.capacity
+  const hasRegistered = Boolean(currentEvent.is_registered)
 
   let dateObj = new Date()
   try {
-    dateObj = new Date(event.date)
+    dateObj = new Date(currentEvent.date)
   } catch {
     // Ignore
   }
@@ -53,18 +53,27 @@ export default function EventSheet({ event, isOpen, onClose }) {
     hour12: true,
   }).format(dateObj)
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!isFree) {
       setShowPaymentAlert(true)
       setTimeout(() => setShowPaymentAlert(false), 3000)
       return
     }
-    registerUser(event.id, currentUser)
+    if (!onRegister) return
+    const nextEvent = await onRegister(currentEvent.id)
+    if (nextEvent) setCurrentEvent(nextEvent)
     setIsSuccess(true)
     setTimeout(() => {
       // Optional: you can close the sheet or just leave the success state
       // onClose();
     }, 3000)
+  }
+
+  const handleCancelRsvp = async () => {
+    if (!onCancelRsvp) return
+    const nextEvent = await onCancelRsvp(currentEvent.id)
+    if (nextEvent) setCurrentEvent(nextEvent)
+    setIsSuccess(false)
   }
 
   return (
@@ -107,10 +116,10 @@ export default function EventSheet({ event, isOpen, onClose }) {
             <div className="h-64 sm:h-80 bg-slate-100 relative overflow-hidden shrink-0">
               <img
                 src={
-                  event.image ||
+                  currentEvent.image ||
                   'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80'
                 }
-                alt={event.title}
+                alt={currentEvent.title}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.src =
@@ -119,9 +128,9 @@ export default function EventSheet({ event, isOpen, onClose }) {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent pointer-events-none" />
               <div className="absolute top-4 left-4 flex gap-2">
-                {event.category && (
+                {currentEvent.category && (
                   <span className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-bold text-indigo-700 shadow-sm uppercase tracking-wider">
-                    {event.category}
+                    {currentEvent.category}
                   </span>
                 )}
               </div>
@@ -129,7 +138,7 @@ export default function EventSheet({ event, isOpen, onClose }) {
 
             <div className="px-6 md:px-8 space-y-6">
               <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {event.title}
+                {currentEvent.title}
               </h1>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-6 pb-6 border-b border-slate-200">
@@ -150,15 +159,17 @@ export default function EventSheet({ event, isOpen, onClose }) {
                     <MapPin size={20} />
                   </div>
                   <div>
-                    <p className="font-bold text-slate-900">{event.location}</p>
-                    <p className="text-sm text-slate-500 font-medium">{event.type || 'Location'}</p>
+                    <p className="font-bold text-slate-900">{currentEvent.location}</p>
+                    <p className="text-sm text-slate-500 font-medium">
+                      {currentEvent.type || 'Location'}
+                    </p>
                   </div>
                 </div>
               </div>
 
               <div className="prose prose-slate max-w-none prose-p:leading-relaxed text-slate-600 text-sm md:text-base">
                 <h3 className="text-lg font-bold text-slate-900 mb-3">About this event</h3>
-                <p>{event.description}</p>
+                <p>{currentEvent.description}</p>
                 <p>
                   Join us for an incredible gathering designed to connect, inspire, and foster
                   lifelong relationships among our vibrant alumni community. This event features
@@ -179,12 +190,12 @@ export default function EventSheet({ event, isOpen, onClose }) {
             <div className="flex gap-4 text-sm text-slate-500 font-medium">
               <span className="flex items-center gap-1.5">
                 <Ticket size={14} />
-                {event.attendees || 0} Registered
+                {currentEvent.attendees || 0} Registered
               </span>
-              {event.capacity && (
+              {currentEvent.capacity && (
                 <span className="flex items-center gap-1.5">
                   <Users size={14} />
-                  {Math.max(0, event.capacity - (event.attendees || 0))} Left
+                  {Math.max(0, currentEvent.capacity - (currentEvent.attendees || 0))} Left
                 </span>
               )}
             </div>
@@ -192,8 +203,17 @@ export default function EventSheet({ event, isOpen, onClose }) {
 
           <div className="w-full sm:w-auto min-w-[200px]">
             {hasRegistered ? (
-              <div className="w-full bg-emerald-50 text-emerald-700 py-3 px-6 rounded-xl flex items-center justify-center gap-2 border border-emerald-100 font-semibold shadow-sm">
-                <CheckCircle2 size={18} /> You're Going
+              <div className="flex flex-col gap-2">
+                <div className="w-full bg-emerald-50 text-emerald-700 py-3 px-6 rounded-xl flex items-center justify-center gap-2 border border-emerald-100 font-semibold shadow-sm">
+                  <CheckCircle2 size={18} /> You're Going
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelRsvp}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel RSVP
+                </button>
               </div>
             ) : isSuccess ? (
               <div className="w-full bg-indigo-50 text-indigo-700 py-3 px-6 rounded-xl flex items-center justify-center gap-2 border border-indigo-100 font-semibold shadow-sm">

@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { UserCheck, Users, UserPlus, Check, X } from 'lucide-react'
 import {
   AreaChart,
@@ -28,7 +29,7 @@ const tooltipStyle = {
 const widgetClasses =
   'bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col w-full relative overflow-hidden transition-all duration-300'
 
-export const EngagementWidget = ({ data }) => (
+export const EngagementWidget = ({ data = [] }) => (
   <div className={`${widgetClasses} h-[360px]`}>
     <h3 className="text-lg font-bold text-slate-800 mb-4 cursor-pointer">Community Engagement</h3>
     <div className="flex-1 min-h-0">
@@ -100,7 +101,7 @@ export const EngagementWidget = ({ data }) => (
   </div>
 )
 
-export const DirectoryWidget = ({ data }) => (
+export const DirectoryWidget = ({ data = [] }) => (
   <div className={`${widgetClasses} h-[360px]`}>
     <h3 className="text-lg font-bold text-slate-800 mb-4 cursor-pointer">Directory Coverage</h3>
     <div className="flex-1 min-h-0 flex items-center justify-center">
@@ -138,7 +139,7 @@ export const DirectoryWidget = ({ data }) => (
   </div>
 )
 
-export const MentoringWidget = ({ data }) => (
+export const MentoringWidget = ({ data = [] }) => (
   <div className={`${widgetClasses} h-[340px]`}>
     <h3 className="text-lg font-bold text-slate-800 mb-4 cursor-pointer">Mentoring Funnel</h3>
     <div className="flex-1 min-h-0">
@@ -193,7 +194,7 @@ export const MentoringWidget = ({ data }) => (
   </div>
 )
 
-export const JobsWidget = ({ data }) => (
+export const JobsWidget = ({ data = [] }) => (
   <div className={`${widgetClasses} h-[340px]`}>
     <h3 className="text-lg font-bold text-slate-800 mb-4 cursor-pointer">Job Pipeline</h3>
     <div className="flex-1 min-h-0">
@@ -252,7 +253,11 @@ export const JobsWidget = ({ data }) => (
   </div>
 )
 
-export const EventsWidget = ({ data }) => (
+export const EventsWidget = ({ data = [] }) => {
+  const primaryKey = data.some((entry) => 'Capacity' in entry) ? 'Capacity' : 'RSVPs'
+  const secondaryKey = data.some((entry) => 'Registered' in entry) ? 'Registered' : 'Attended'
+
+  return (
   <div className={`${widgetClasses} h-[340px]`}>
     <h3 className="text-lg font-bold text-slate-800 mb-4 cursor-pointer">Event Check-ins</h3>
     <div className="flex-1 min-h-0">
@@ -286,18 +291,24 @@ export const EventsWidget = ({ data }) => (
             iconType="circle"
             wrapperStyle={{ fontSize: '12px', paddingTop: '10px', fontWeight: 500 }}
           />
-          <Bar dataKey="RSVPs" fill="url(#rsvpGrad)" radius={[4, 4, 0, 0]} barSize={16} />
-          <Bar dataKey="Attended" fill="url(#attGrad)" radius={[4, 4, 0, 0]} barSize={16} />
+          <Bar dataKey={primaryKey} fill="url(#rsvpGrad)" radius={[4, 4, 0, 0]} barSize={16} />
+          <Bar dataKey={secondaryKey} fill="url(#attGrad)" radius={[4, 4, 0, 0]} barSize={16} />
         </BarChart>
       </ResponsiveContainer>
     </div>
   </div>
-)
+  )
+}
 
-export const CampaignsWidget = ({ data }) => (
+export const CampaignsWidget = ({ data = [] }) => (
   <div className={`${widgetClasses}`}>
     <h3 className="text-lg font-bold text-slate-800 mb-5 cursor-pointer">Top Active Campaigns</h3>
     <div className="space-y-6">
+      {data.length === 0 && (
+        <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+          No active campaigns yet.
+        </div>
+      )}
       {data.map((campaign) => {
         const percent = Math.min(100, Math.round((campaign.raised / campaign.goal) * 100))
         return (
@@ -338,34 +349,9 @@ export const CampaignsWidget = ({ data }) => (
   </div>
 )
 
-export const ActionsWidget = () => {
-  const [actions, setActions] = useState([
-    {
-      id: 1,
-      type: 'Alumni Verification',
-      desc: 'Suresh K. expected approval',
-      icon: UserCheck,
-      colorClasses: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-    },
-    {
-      id: 2,
-      type: 'Club Approval',
-      desc: 'Robotics Alumni by Amit',
-      icon: Users,
-      colorClasses: 'bg-purple-50 text-purple-600 border-purple-100',
-    },
-    {
-      id: 3,
-      type: 'Mentee Rematch',
-      desc: 'Priya requested new mentor',
-      icon: UserPlus,
-      colorClasses: 'bg-rose-50 text-rose-600 border-rose-100',
-    },
-  ])
-
-  const handleAction = (id) => {
-    setActions(actions.filter((action) => action.id !== id))
-  }
+export const ActionsWidget = ({ data = [] }) => {
+  const navigate = useNavigate()
+  const actions = data
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden w-full flex flex-col h-full">
@@ -386,7 +372,12 @@ export const ActionsWidget = () => {
           </div>
         ) : (
           actions.map((action) => {
-            const Icon = action.icon
+            const Icon =
+              action.icon === 'users'
+                ? Users
+                : action.icon === 'user-plus'
+                  ? UserPlus
+                  : UserCheck
             return (
               <div
                 key={action.id}
@@ -403,16 +394,16 @@ export const ActionsWidget = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleAction(action.id)}
+                    onClick={() => action.route && navigate(action.route)}
                     className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-md transition-colors"
-                    title="Accept"
+                    title="Open"
                   >
                     <Check size={16} />
                   </button>
                   <button
-                    onClick={() => handleAction(action.id)}
+                    onClick={() => action.route && navigate(action.route)}
                     className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-md transition-colors"
-                    title="Reject"
+                    title="Review"
                   >
                     <X size={16} />
                   </button>
@@ -426,36 +417,37 @@ export const ActionsWidget = () => {
   )
 }
 
-export const HighlightsWidget = () => (
+export const HighlightsWidget = ({ data = [] }) => (
   <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden w-full flex flex-col h-full">
     <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
       <h3 className="text-lg font-bold text-slate-800 cursor-pointer">Upcoming Highlights</h3>
     </div>
     <div className="p-5 space-y-5 flex-1">
-      <div className="flex gap-4 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-        <div className="flex flex-col items-center justify-center h-12 w-12 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
-          <span className="text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-80">
-            Aug
-          </span>
-          <span className="text-lg font-bold leading-none">12</span>
+      {data.length === 0 && (
+        <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
+          No upcoming highlights yet.
         </div>
-        <div className="flex-1 pt-0.5">
-          <p className="text-[14px] font-bold text-slate-800">Annual Reunion</p>
-          <p className="text-[12px] text-emerald-600 font-medium mt-1">300 RSVPs expected</p>
+      )}
+      {data.map((item) => (
+        <div key={item.id} className="flex gap-4 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+          <div
+            className={`flex flex-col items-center justify-center h-12 w-12 rounded-xl border ${
+              item.tone === 'amber'
+                ? 'bg-amber-50 text-amber-700 border-amber-100'
+                : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+            }`}
+          >
+            <span className="text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-80">
+              {item.month}
+            </span>
+            <span className="text-lg font-bold leading-none">{item.day}</span>
+          </div>
+          <div className="flex-1 pt-0.5">
+            <p className="text-[14px] font-bold text-slate-800">{item.title}</p>
+            <p className="text-[12px] text-slate-500 font-medium mt-1">{item.subtitle}</p>
+          </div>
         </div>
-      </div>
-      <div className="flex gap-4 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-        <div className="flex flex-col items-center justify-center h-12 w-12 rounded-xl bg-amber-50 text-amber-700 border border-amber-100">
-          <span className="text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-80">
-            Aug
-          </span>
-          <span className="text-lg font-bold leading-none">15</span>
-        </div>
-        <div className="flex-1 pt-0.5">
-          <p className="text-[14px] font-bold text-slate-800">Campaign Closes</p>
-          <p className="text-[12px] text-slate-500 font-medium mt-1">Scholarship Fund</p>
-        </div>
-      </div>
+      ))}
     </div>
   </div>
 )

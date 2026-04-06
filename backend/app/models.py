@@ -22,7 +22,7 @@ class UserProfile(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
-    avatar = models.URLField(max_length=500, blank=True, null=True)
+    avatar = models.TextField(blank=True, null=True)
     headline = models.CharField(max_length=255, blank=True)
     bio = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
@@ -47,6 +47,11 @@ class UserProfile(models.Model):
     willing_to_mentor = models.BooleanField(default=False)
     willing_to_hire = models.BooleanField(default=False)
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public')
+    supplemental_profile = models.JSONField(default=dict, blank=True)
+    professional_preferences = models.JSONField(default=dict, blank=True)
+    mentorship_preferences = models.JSONField(default=dict, blank=True)
+    notification_preferences = models.JSONField(default=dict, blank=True)
+    privacy_preferences = models.JSONField(default=dict, blank=True)
 
     class Meta:
         indexes = [
@@ -308,16 +313,27 @@ class Event(models.Model):
     date = models.DateTimeField()
     location = models.CharField(max_length=255)
     category = models.CharField(max_length=100)
+    type = models.CharField(max_length=50, default='In-Person')
+    visibility = models.CharField(max_length=20, default='Public')
     description = models.TextField()
     image = models.URLField(blank=True, null=True)
+    capacity = models.IntegerField(null=True, blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    invited_members = models.JSONField(default=list, blank=True)
+    club = models.ForeignKey('Club', on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_events')
     attendees = models.ManyToManyField(User, blank=True, related_name='attended_events')
 
 class NewsArticle(models.Model):
     title = models.CharField(max_length=255)
+    summary = models.TextField(blank=True)
     content = models.TextField()
     category_name = models.CharField(max_length=100)
-    published_at = models.DateTimeField(auto_now_add=True)
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
     image = models.URLField(blank=True, null=True)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='news_articles')
+    updated_at = models.DateTimeField(auto_now=True)
 
 class Notification(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -327,6 +343,44 @@ class Notification(models.Model):
     metadata = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=20, default='unread')
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class PortalSettings(models.Model):
+    site_name = models.CharField(max_length=200, default='Alumni Portal')
+    maintenance_mode = models.BooleanField(default=False)
+    registration_open = models.BooleanField(default=True)
+    email_approval = models.BooleanField(default=True)
+    public_directory = models.BooleanField(default=True)
+    allow_student_messages = models.BooleanField(default=True)
+    job_posting_enabled = models.BooleanField(default=True)
+    events_enabled = models.BooleanField(default=True)
+    role_permissions = models.JSONField(default=dict, blank=True)
+    moderation_settings = models.JSONField(default=dict, blank=True)
+    data_preferences = models.JSONField(default=dict, blank=True)
+    notification_preferences = models.JSONField(default=dict, blank=True)
+    admin_permissions = models.JSONField(default=dict, blank=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='updated_portal_settings')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return 'Portal Settings'
+
+
+class AuditLog(models.Model):
+    action = models.CharField(max_length=255)
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.action
 
 
 # ==========================================
@@ -521,6 +575,34 @@ class ClubPost(models.Model):
 
     def __str__(self):
         return f"Post in {self.club.name} by {self.author}"
+
+
+class ClubPostLike(models.Model):
+    post = models.ForeignKey(ClubPost, on_delete=models.CASCADE, related_name='user_likes')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_post_likes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['post', 'user'], name='uniq_club_post_like_per_user'),
+        ]
+
+
+class ClubPostComment(models.Model):
+    post = models.ForeignKey(ClubPost, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='club_post_comments')
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies',
+    )
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
 
 
 class ClubMessage(models.Model):

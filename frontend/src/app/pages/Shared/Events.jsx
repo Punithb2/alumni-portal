@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Plus, Calendar, MapPin, Users, Ticket, CheckCircle2 } from 'lucide-react'
+import React, { useMemo, useState } from 'react'
+import { MapPin, Ticket, CheckCircle2 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
 import { useEvents } from '../../hooks/useEvents'
 
@@ -11,16 +11,7 @@ import EventSheet from '../../components/Events/EventSheet'
 const Events = () => {
   const { user } = useAuth()
   const currentUser = user || { role: 'Alumni' }
-  // const isAdmin = currentUser?.role === 'University' || currentUser?.role === 'SA'
-
-  const { events } = useEvents()
-
-  // Mock user RSVPS for demo
-  const [rsvpdEvents] = useState(
-    new Set(
-      events.filter((e) => e.registeredUsers?.some((u) => u.id === currentUser.id)).map((e) => e.id)
-    )
-  )
+  const { events, loading, error, registerUser, cancelRsvp } = useEvents()
 
   // Filter States
   const [activeTab, setActiveTab] = useState('Upcoming')
@@ -34,6 +25,10 @@ const Events = () => {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   const now = new Date()
+  const rsvpdEvents = useMemo(
+    () => new Set(events.filter((e) => e.is_registered).map((e) => e.id)),
+    [events]
+  )
 
   // Computed Filters
   const filteredEvents = events.filter((event) => {
@@ -88,7 +83,16 @@ const Events = () => {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Main Content Area */}
         <div className="flex-1 space-y-6">
-          {filteredEvents.length > 0 ? (
+          {error && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          )}
+          {loading ? (
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+              Loading events...
+            </div>
+          ) : filteredEvents.length > 0 ? (
             viewMode === 'card' ? (
               <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
                 {filteredEvents.map((event) => (
@@ -134,7 +138,7 @@ const Events = () => {
                           hour12: true,
                         }).format(dateObj)
 
-                        const isRsvpd = rsvpdEvents.has(event.id)
+                        const isRsvpd = Boolean(event.is_registered)
                         const isFree = event.price === 0 || !event.price
                         const isSoldOut = event.capacity && event.attendees >= event.capacity
 
@@ -241,7 +245,13 @@ const Events = () => {
       </div>
 
       {/* Event Details Sheet */}
-      <EventSheet event={selectedEvent} isOpen={isSheetOpen} onClose={closeEventSheet} />
+      <EventSheet
+        event={selectedEvent}
+        isOpen={isSheetOpen}
+        onClose={closeEventSheet}
+        onRegister={registerUser}
+        onCancelRsvp={cancelRsvp}
+      />
     </div>
   )
 }

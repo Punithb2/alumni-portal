@@ -36,6 +36,8 @@ router.register(r'events', views.EventViewSet, basename='event')
 # Notifications & News
 router.register(r'notifications', views.NotificationViewSet, basename='notification')
 router.register(r'news', views.NewsArticleViewSet, basename='news')
+router.register(r'portal-settings', views.PortalSettingsViewSet, basename='portal-settings')
+router.register(r'audit-logs', views.AuditLogViewSet, basename='audit-log')
 
 # Messaging
 router.register(r'conversations', views.ConversationViewSet, basename='conversation')
@@ -53,5 +55,11 @@ router.register(r'club-posts', views.ClubPostViewSet, basename='club-post')
 urlpatterns = [
     path('auth/register/', views.RegisterView.as_view(), name='register'),
     path('auth/me/', views.get_user_profile, name='get_user_profile'),
+    path('auth/change-password/', views.change_password, name='change_password'),
+    path('auth/sessions/', views.list_active_sessions, name='list_active_sessions'),
+    path('auth/delete-account/', views.delete_account, name='delete_account'),
+    path('admin-users/invite/', views.admin_invite_user, name='admin_invite_user'),
+    path('admin-users/bulk-import/', views.admin_bulk_import_users, name='admin_bulk_import_users'),
+    path('admin-analytics/', views.admin_dashboard_analytics, name='admin_dashboard_analytics'),
     path('', include(router.urls)),
 ]

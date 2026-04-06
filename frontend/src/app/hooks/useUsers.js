@@ -30,7 +30,7 @@ const mapProfileToUser = (profile) => {
     avatar:
       profile.avatar ||
       getAvatarDataUrl(fullName),
-    status: 'Active',
+    status: profile.account_status || (profile.user?.is_active ? 'Active' : 'Suspended'),
     graduationYear: profile.graduation_year || '',
     email: profile.user?.email || '',
     department: profile.department || '',
@@ -76,5 +76,42 @@ export const useUsers = () => {
     setUsers((prev) => prev.filter((u) => String(u.profileId) !== String(profileId)))
   }
 
-  return { users, loading, error, changeRole, deleteUser, refetch: fetchUsers }
+  const updateStatus = async (profileId, status) => {
+    const res = await api.post(`/profiles/${profileId}/set_status/`, { status })
+    setUsers((prev) =>
+      prev.map((u) => (String(u.profileId) === String(profileId) ? mapProfileToUser(res.data) : u))
+    )
+    return res.data
+  }
+
+  const inviteUser = async ({ name, email, role }) => {
+    const res = await api.post('/admin-users/invite/', { name, email, role })
+    const mapped = mapProfileToUser(res.data.user)
+    setUsers((prev) => [mapped, ...prev])
+    return res.data
+  }
+
+  const bulkImportUsers = async ({ users: importUsers, defaultRole }) => {
+    const res = await api.post('/admin-users/bulk-import/', {
+      users: importUsers,
+      default_role: roleToApi(defaultRole),
+    })
+    const createdUsers = (res.data.created || []).map(mapProfileToUser)
+    if (createdUsers.length) {
+      setUsers((prev) => [...createdUsers, ...prev])
+    }
+    return res.data
+  }
+
+  return {
+    users,
+    loading,
+    error,
+    changeRole,
+    deleteUser,
+    updateStatus,
+    inviteUser,
+    bulkImportUsers,
+    refetch: fetchUsers,
+  }
 }

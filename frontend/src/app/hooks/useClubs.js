@@ -112,6 +112,10 @@ const normalizePost = (post = {}) => ({
   avatar: post.avatar || post.author_avatar || getAvatarDataUrl(post.author || post.author_name || 'Member'),
   time: post.time || post.created_at || '',
   isPinned: post.isPinned ?? post.is_pinned ?? false,
+  isLiked: Boolean(post.isLiked ?? post.is_liked),
+  likes: Number(post.likes || 0),
+  commentCount: Number(post.commentCount ?? post.comment_count ?? 0),
+  comments: Array.isArray(post.comments) ? post.comments.map(normalizeClubComment) : [],
 })
 
 const normalizeMessage = (message = {}) => ({
@@ -120,6 +124,43 @@ const normalizeMessage = (message = {}) => ({
   avatar: message.avatar || message.sender_avatar || '',
   time: message.time || message.sent_at || '',
 })
+
+const normalizeClubComment = (comment = {}) => ({
+  ...comment,
+  author: comment.author || comment.author_name || 'Member',
+  avatar:
+    comment.avatar ||
+    comment.author_avatar ||
+    getAvatarDataUrl(comment.author || comment.author_name || 'Member'),
+  text: comment.text || comment.content || '',
+  time: comment.time || comment.created_at || '',
+  replies: Array.isArray(comment.replies) ? comment.replies.map(normalizeClubComment) : [],
+})
+
+const normalizeClubEvent = (event = {}) => {
+  const attendeesCount = Number(event?.attendees_count ?? event?.attendees ?? 0)
+  const parsedDate = event?.date ? new Date(event.date) : null
+  const displayDate =
+    parsedDate && !Number.isNaN(parsedDate.getTime())
+      ? parsedDate.toLocaleString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : event?.date || ''
+  return {
+    ...event,
+    cover: event.cover || event.image || DEFAULT_COVER_IMAGE,
+    date: displayDate,
+    type: event.type || 'In-Person',
+    attendees: attendeesCount,
+    attendees_count: attendeesCount,
+    isRegistered: Boolean(event.isRegistered ?? event.is_registered),
+    is_registered: Boolean(event.is_registered ?? event.isRegistered),
+  }
+}
 
 const serializeClubPayload = (data = {}, { isUpdate = false } = {}) => {
   const payload = {}
@@ -161,6 +202,7 @@ export function useClubs() {
   const [members, setMembers] = useState({})
   const [joinRequests, setJoinRequests] = useState({})
   const [messages, setMessages] = useState({})
+  const [events, setEvents] = useState({})
 
   const fetchClubs = useCallback(async () => {
     setLoading(true)
@@ -364,7 +406,9 @@ export function useClubs() {
     setPosts((prev) => ({
       ...prev,
       [clubId]: (prev[clubId] || []).map((p) =>
-        p.id === postId ? { ...p, likes: res.data.likes } : p
+        p.id === postId
+          ? normalizePost({ ...p, likes: res.data.likes, is_liked: res.data.is_liked })
+          : p
       ),
     }))
   }
@@ -375,6 +419,52 @@ export function useClubs() {
       ...prev,
       [clubId]: (prev[clubId] || []).map((p) =>
         p.id === postId ? { ...p, is_pinned: res.data.is_pinned, isPinned: res.data.is_pinned } : p
+      ),
+    }))
+  }
+
+  const addComment = async (clubId, postId, content, parentId = null) => {
+    const payload = { content: (content || '').trim() }
+    if (parentId) payload.parent = parentId
+    await api.post(`/club-posts/${postId}/add_comment/`, payload)
+    return fetchPosts(clubId)
+  }
+
+  const fetchEvents = useCallback(async (clubId) => {
+    const res = await api.get('/events/', { params: { club: clubId } })
+    const nextEvents = (res.data.results ?? res.data).map(normalizeClubEvent)
+    setEvents((prev) => ({ ...prev, [clubId]: nextEvents }))
+    return nextEvents
+  }, [])
+
+  const registerForEvent = async (clubId, eventId) => {
+    const res = await api.post(`/events/${eventId}/rsvp/`)
+    setEvents((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).map((event) =>
+        event.id === eventId
+          ? normalizeClubEvent({
+              ...event,
+              attendees_count: res.data.attendees_count,
+              is_registered: true,
+            })
+          : event
+      ),
+    }))
+  }
+
+  const cancelEventRsvp = async (clubId, eventId) => {
+    const res = await api.post(`/events/${eventId}/cancel_rsvp/`)
+    setEvents((prev) => ({
+      ...prev,
+      [clubId]: (prev[clubId] || []).map((event) =>
+        event.id === eventId
+          ? normalizeClubEvent({
+              ...event,
+              attendees_count: res.data.attendees_count,
+              is_registered: false,
+            })
+          : event
       ),
     }))
   }
@@ -399,6 +489,7 @@ export function useClubs() {
     members,
     joinRequests,
     messages,
+    events,
     joinedIds,
     pendingIds,
     loading,
@@ -423,7 +514,11 @@ export function useClubs() {
     deletePost,
     likePost,
     pinPost,
+    addComment,
     fetchChat,
     sendMessage,
+    fetchEvents,
+    registerForEvent,
+    cancelEventRsvp,
   }
 }

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Users,
   ShieldCheck,
@@ -36,8 +37,6 @@ import {
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth'
 import { useClubs } from '../../hooks/useClubs'
-import { useGamification } from '../../hooks/useGamification'
-import { BADGES } from '../../data/gamification'
 
 const ROLE_ICONS = {
   Owner: <Crown size={13} className="text-amber-500" />,
@@ -62,13 +61,31 @@ const TABS = [
 // ═══════════════════════════════════════════════════════════════
 // 1) FEED TAB
 // ═══════════════════════════════════════════════════════════════
-const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, likedPosts }) => {
+const FeedTab = ({
+  user,
+  posts,
+  isAdmin,
+  onCreatePost,
+  onLike,
+  onDelete,
+  onPin,
+  onComment,
+  onReply,
+  likedPosts,
+}) => {
   const [feedMsg, setFeedMsg] = useState('')
   const [expandedComments, setExpandedComments] = useState(new Set())
   const [commentInputs, setCommentInputs] = useState({})
   const [replyInputs, setReplyInputs] = useState({})
   const [replyBoxes, setReplyBoxes] = useState({})
   const [sharedPostIds, setSharedPostIds] = useState(new Set())
+  const [submittingPost, setSubmittingPost] = useState(false)
+  const [submittingCommentFor, setSubmittingCommentFor] = useState(null)
+  const [submittingReplyFor, setSubmittingReplyFor] = useState(null)
+  const currentUserAvatar =
+    user?.avatar ||
+    user?.profile?.avatar ||
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150'
 
   const handleShare = (postId) => {
     navigator.clipboard.writeText(window.location.href)
@@ -82,11 +99,17 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
     }, 2000)
   }
 
-  const handlePost = (e) => {
+  const handlePost = async (e) => {
     e.preventDefault()
-    if (!feedMsg.trim()) return
-    onCreatePost({ content: feedMsg })
-    setFeedMsg('')
+    const nextContent = feedMsg.trim()
+    if (!nextContent || submittingPost) return
+    setSubmittingPost(true)
+    try {
+      await onCreatePost({ content: nextContent })
+      setFeedMsg('')
+    } finally {
+      setSubmittingPost(false)
+    }
   }
 
   const toggleComments = (postId) => {
@@ -97,9 +120,32 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
     })
   }
 
-  const handleCommentSubmit = () => {}
+  const handleCommentSubmit = async (postId) => {
+    const nextContent = (commentInputs[postId] || '').trim()
+    if (!nextContent || submittingCommentFor === postId) return
+    setSubmittingCommentFor(postId)
+    try {
+      await onComment(postId, nextContent)
+      setCommentInputs((prev) => ({ ...prev, [postId]: '' }))
+      setExpandedComments((prev) => new Set(prev).add(postId))
+    } finally {
+      setSubmittingCommentFor(null)
+    }
+  }
 
-  const handleReplySubmit = () => {}
+  const handleReplySubmit = async (postId, commentId) => {
+    const nextContent = (replyInputs[commentId] || '').trim()
+    if (!nextContent || submittingReplyFor === commentId) return
+    setSubmittingReplyFor(commentId)
+    try {
+      await onReply(postId, commentId, nextContent)
+      setReplyInputs((prev) => ({ ...prev, [commentId]: '' }))
+      setReplyBoxes((prev) => ({ ...prev, [commentId]: false }))
+      setExpandedComments((prev) => new Set(prev).add(postId))
+    } finally {
+      setSubmittingReplyFor(null)
+    }
+  }
 
   const sortedPosts = [...(posts || [])].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0))
 
@@ -126,10 +172,10 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
               </p>
               <button
                 onClick={handlePost}
-                disabled={!feedMsg.trim()}
+                disabled={!feedMsg.trim() || submittingPost}
                 className="px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Post
+                {submittingPost ? 'Posting...' : 'Post'}
               </button>
             </div>
           </div>
@@ -220,11 +266,16 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
 
               <button
                 onClick={() => toggleComments(post.id)}
-                disabled
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm text-slate-400 cursor-not-allowed"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition-all ${
+                  expandedComments.has(post.id)
+                    ? 'text-indigo-600 bg-indigo-50'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600'
+                }`}
               >
                 <MessageSquare size={16} />
-                <span className="hidden sm:inline">Comments unavailable</span>
+                <span className="hidden sm:inline">
+                  {post.commentCount > 0 ? `${post.commentCount} Comments` : 'Comment'}
+                </span>
               </button>
 
               <button
@@ -241,6 +292,9 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
             {/* Comments */}
             {expandedComments.has(post.id) && (
               <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+                {post.comments?.length === 0 && (
+                  <p className="text-sm text-slate-500 font-medium">No comments yet. Start the conversation.</p>
+                )}
                 {post.comments?.map((c) => (
                   <div key={c.id} className="group">
                     <div className="flex gap-3 items-start">
@@ -296,7 +350,7 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
                         {replyBoxes[c.id] && (
                           <div className="flex gap-2 mt-2">
                             <img
-                              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150"
+                              src={currentUserAvatar}
                               alt="You"
                               className="w-6 h-6 rounded-full object-cover shrink-0 mt-1"
                             />
@@ -315,10 +369,10 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
                               />
                               <button
                                 onClick={() => handleReplySubmit(post.id, c.id)}
-                                disabled={!replyInputs[c.id]?.trim()}
+                                disabled={!replyInputs[c.id]?.trim() || submittingReplyFor === c.id}
                                 className="px-2.5 py-1.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition disabled:opacity-40"
                               >
-                                <Send size={12} />
+                                {submittingReplyFor === c.id ? '...' : <Send size={12} />}
                               </button>
                             </div>
                           </div>
@@ -330,7 +384,7 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
                 {/* Comment input */}
                 <div className="flex gap-3 mt-3">
                   <img
-                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150"
+                    src={currentUserAvatar}
                     alt="You"
                     className="w-8 h-8 rounded-full object-cover shrink-0"
                   />
@@ -347,10 +401,12 @@ const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, 
                     />
                     <button
                       onClick={() => handleCommentSubmit(post.id)}
-                      disabled={!commentInputs[post.id]?.trim()}
+                      disabled={
+                        !commentInputs[post.id]?.trim() || submittingCommentFor === post.id
+                      }
                       className="px-3 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition disabled:opacity-40"
                     >
-                      <Send size={14} />
+                      {submittingCommentFor === post.id ? '...' : <Send size={14} />}
                     </button>
                   </div>
                 </div>
@@ -667,23 +723,31 @@ const MembersTab = ({
 // ═══════════════════════════════════════════════════════════════
 // 4) EVENTS TAB
 // ═══════════════════════════════════════════════════════════════
-const EventsTab = ({ events, isAdmin }) => {
-  const [rsvped, setRsvped] = useState(new Set())
+const EventsTab = ({ events, isAdmin, onRegister, onCancelRsvp }) => {
+  const navigate = useNavigate()
+  const [sharedEventIds, setSharedEventIds] = useState(new Set())
 
-  const toggleRsvp = (id) => {
-    setRsvped((prev) => {
-      const s = new Set(prev)
-      s.has(id) ? s.delete(id) : s.add(id)
-      return s
-    })
+  const handleShare = async (eventId) => {
+    await navigator.clipboard.writeText(`${window.location.origin}/events/${eventId}`)
+    setSharedEventIds((prev) => new Set(prev).add(eventId))
+    setTimeout(() => {
+      setSharedEventIds((prev) => {
+        const next = new Set(prev)
+        next.delete(eventId)
+        return next
+      })
+    }, 2000)
   }
 
   return (
     <div className="space-y-5">
       {isAdmin && (
         <div className="flex justify-end">
-          <button className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm flex items-center gap-2">
-            <Calendar size={16} /> Create Event
+          <button
+            onClick={() => navigate('/events')}
+            className="px-4 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm flex items-center gap-2"
+          >
+            <Calendar size={16} /> View Events Calendar
           </button>
         </div>
       )}
@@ -724,14 +788,16 @@ const EventsTab = ({ events, isAdmin }) => {
               </div>
               <div className="mt-auto flex items-center gap-3">
                 <button
-                  onClick={() => toggleRsvp(evt.id)}
+                  onClick={() =>
+                    evt.isRegistered ? onCancelRsvp(evt.id) : onRegister(evt.id)
+                  }
                   className={`px-4 py-2 text-sm font-bold rounded-xl transition flex items-center gap-2 ${
-                    rsvped.has(evt.id)
+                    evt.isRegistered
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
                   }`}
                 >
-                  {rsvped.has(evt.id) ? (
+                  {evt.isRegistered ? (
                     <>
                       <CheckCircle size={15} /> RSVPed
                     </>
@@ -741,8 +807,11 @@ const EventsTab = ({ events, isAdmin }) => {
                     </>
                   )}
                 </button>
-                <button className="px-4 py-2 text-sm font-bold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
-                  Share
+                <button
+                  onClick={() => handleShare(evt.id)}
+                  className="px-4 py-2 text-sm font-bold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
+                >
+                  {sharedEventIds.has(evt.id) ? 'Copied' : 'Share'}
                 </button>
               </div>
             </div>
@@ -927,9 +996,9 @@ const AboutTab = ({ group }) => {
                   <p className="text-xs text-slate-500 font-medium">{admin.role}</p>
                 </div>
               </div>
-              <button className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors">
-                <Mail size={14} /> Message
-              </button>
+              <span className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 bg-slate-50">
+                <Mail size={14} /> {admin.role}
+              </span>
             </div>
           ))}
         </div>
@@ -964,13 +1033,13 @@ const AboutTab = ({ group }) => {
 // ═══════════════════════════════════════════════════════════════
 const ClubDetail = ({ groupId }) => {
   const { user } = useAuth()
-  const { awardPoints } = useGamification()
   const {
     clubs,
     posts,
     members,
     joinRequests,
     messages,
+    events,
     joinedIds,
     pendingIds,
     joinClub,
@@ -984,16 +1053,19 @@ const ClubDetail = ({ groupId }) => {
     deletePost,
     likePost,
     pinPost,
+    addComment,
     approveJoinRequest,
     rejectJoinRequest,
     removeMember,
     promoteMember,
     sendMessage,
+    fetchEvents,
+    registerForEvent,
+    cancelEventRsvp,
   } = useClubs()
 
   const group = clubs.find((c) => String(c.id) === String(groupId)) || clubs[0]
   const [activeTab, setActiveTab] = useState('feed')
-  const [likedPosts, setLikedPosts] = useState(new Set())
 
   const isJoined = joinedIds.has(group?.id)
   const isPending = pendingIds.has(group?.id)
@@ -1011,17 +1083,19 @@ const ClubDetail = ({ groupId }) => {
   const groupMembers = members[group?.id] || []
   const groupRequests = joinRequests[group?.id] || []
   const groupMessages = messages[group?.id] || []
-  const groupEvents = []
+  const groupEvents = events[group?.id] || []
+  const likedPosts = new Set(groupPosts.filter((post) => post.isLiked).map((post) => post.id))
 
   useEffect(() => {
     if (!group?.id) return
     fetchPosts(group.id)
     fetchMembers(group.id)
     fetchChat(group.id)
+    fetchEvents(group.id)
     if (isGroupAdmin) {
       fetchJoinRequests(group.id)
     }
-  }, [group?.id, isGroupAdmin, fetchPosts, fetchMembers, fetchChat, fetchJoinRequests])
+  }, [group?.id, isGroupAdmin, fetchPosts, fetchMembers, fetchChat, fetchEvents, fetchJoinRequests])
 
   const handleJoinToggle = () => {
     if (isJoined) {
@@ -1033,17 +1107,9 @@ const ClubDetail = ({ groupId }) => {
       return
     }
     joinClub(group.id)
-    if (!group.isPrivate) {
-      awardPoints(100, 'Joined a club', BADGES.CLUB_MEMBER.id)
-    }
   }
 
   const handleLike = (postId, alreadyLiked) => {
-    setLikedPosts((prev) => {
-      const s = new Set(prev)
-      alreadyLiked ? s.delete(postId) : s.add(postId)
-      return s
-    })
     likePost(group.id, postId, alreadyLiked)
   }
 
@@ -1192,6 +1258,10 @@ const ClubDetail = ({ groupId }) => {
               onLike={handleLike}
               onDelete={(postId) => deletePost(group.id, postId)}
               onPin={(postId) => pinPost(group.id, postId)}
+              onComment={(postId, content) => addComment(group.id, postId, content)}
+              onReply={(postId, commentId, content) =>
+                addComment(group.id, postId, content, commentId)
+              }
             />
           )}
           {activeTab === 'chat' && (
@@ -1213,7 +1283,14 @@ const ClubDetail = ({ groupId }) => {
               onPromoteMember={(memberId) => promoteMember(group.id, memberId)}
             />
           )}
-          {activeTab === 'events' && <EventsTab events={groupEvents} isAdmin={isGroupAdmin} />}
+          {activeTab === 'events' && (
+            <EventsTab
+              events={groupEvents}
+              isAdmin={isGroupAdmin}
+              onRegister={(eventId) => registerForEvent(group.id, eventId)}
+              onCancelRsvp={(eventId) => cancelEventRsvp(group.id, eventId)}
+            />
+          )}
           {activeTab === 'about' && <AboutTab group={group} />}
         </div>
         {/* ── Right Sidebar ── */}

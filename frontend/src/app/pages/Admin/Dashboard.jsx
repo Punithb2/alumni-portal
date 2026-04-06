@@ -30,8 +30,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-
-// Widgets & Wrappers
 import { DraggableWidget } from './components/DraggableWidget'
 import {
   EngagementWidget,
@@ -43,194 +41,14 @@ import {
   ActionsWidget,
   HighlightsWidget,
 } from './components/DashboardWidgets'
+import { useAdminDashboardAnalytics } from '../../hooks/useAdminDashboardAnalytics'
 
-// --- Mock Data ---
-const activeUsersData = [
-  { name: 'Week 1', all: 400, alumni: 240, student: 160 },
-  { name: 'Week 2', all: 300, alumni: 139, student: 161 },
-  { name: 'Week 3', all: 450, alumni: 280, student: 170 },
-  { name: 'Week 4', all: 500, alumni: 310, student: 190 },
-]
-const directoryCoverageData = [
-  { name: 'Verified Alumni', value: 800, color: '#10b981' },
-  { name: 'Unverified', value: 300, color: '#f59e0b' },
-  { name: 'Students', value: 500, color: '#3b82f6' },
-  { name: 'Admin', value: 20, color: '#6366f1' },
-]
-const mentoringFunnelData = [
-  { name: 'Matches', value: 150, fill: 'url(#matchGrad)' },
-  { name: 'Requests', value: 200, fill: 'url(#requestGrad)' },
-  { name: 'Mentees', value: 450, fill: 'url(#menteeGrad)' },
-  { name: 'Mentors', value: 300, fill: 'url(#mentorGrad)' },
-].reverse()
-const jobPipelineData = [
-  { name: 'Week 1', posted: 20, applications: 80, referrals: 10 },
-  { name: 'Week 2', posted: 35, applications: 120, referrals: 15 },
-  { name: 'Week 3', posted: 25, applications: 90, referrals: 12 },
-  { name: 'Week 4', posted: 40, applications: 150, referrals: 25 },
-]
-const eventPerformanceData = [
-  { name: 'Tech Talk', RSVPs: 150, Attended: 120 },
-  { name: 'Reunion', RSVPs: 300, Attended: 250 },
-  { name: 'Workshop', RSVPs: 80, Attended: 50 },
-  { name: 'Webinar', RSVPs: 200, Attended: 110 },
-]
-const campaignProgressData = [
-  {
-    id: 1,
-    name: 'Scholarship Fund 2024',
-    raised: 25000,
-    goal: 50000,
-    donors: 124,
-    daysLeft: 14,
-    status: 'amber',
-    isParticipation: false,
-  },
-  {
-    id: 2,
-    name: 'Blood Donation Camp',
-    raised: 156,
-    goal: 200,
-    donors: 156,
-    daysLeft: 5,
-    status: 'green',
-    isParticipation: true,
-  },
-  {
-    id: 3,
-    name: 'Sports Complex',
-    raised: 5000,
-    goal: 100000,
-    donors: 45,
-    daysLeft: 30,
-    status: 'red',
-    isParticipation: false,
-  },
-]
-
-const initialKpiCards = [
-  {
-    id: 'kpi-1',
-    title: 'Active Users',
-    icon: Activity,
-    color: 'text-blue-500',
-    value: '1,245',
-    trend: '+14%',
-    trendText: 'vs last period',
-    trendColor: 'text-emerald-600',
-    trendIcon: TrendingUp,
-    route: '/admin/users',
-  },
-  {
-    id: 'kpi-2',
-    title: 'New Verified Alumni',
-    icon: UserCheck,
-    color: 'text-emerald-500',
-    value: '84',
-    subText: 'Total: 800 verified',
-    route: '/admin/users',
-  },
-  {
-    id: 'kpi-3',
-    title: 'Mentoring',
-    icon: Users,
-    color: 'text-purple-500',
-    value: '150',
-    subLeft: 'Active matches',
-    badgeText: 'Low Engagement',
-    badgeColor: 'bg-rose-100 text-rose-700',
-  },
-  {
-    id: 'kpi-4',
-    title: 'Jobs & Internships',
-    icon: Briefcase,
-    color: 'text-indigo-500',
-    value: '120',
-    valueSub: 'posted',
-    subTextBold: '350 applications',
-    subTextColor: 'text-indigo-600',
-  },
-  {
-    id: 'kpi-5',
-    title: 'Event Engagement',
-    icon: Calendar,
-    color: 'text-cyan-500',
-    value: '12',
-    valueSub: 'events',
-    subLeft: 'Avg. Attendance:',
-    subRightBold: '78%',
-    route: '/admin/events',
-  },
-  {
-    id: 'kpi-6',
-    title: 'Campaign Performance',
-    icon: DollarSign,
-    color: 'text-amber-500',
-    value: '₹75k',
-    subTextBold: '68% of goal reached',
-    subTextColor: 'text-amber-600',
-    route: '/admin/campaigns',
-  },
-]
-
-const WIDGET_REGISTRY = {
-  engagement: {
-    id: 'engagement',
-    component: EngagementWidget,
-    data: activeUsersData,
-    colSpanClass: 'md:col-span-2',
-    title: 'Community Engagement',
-  },
-  directory: {
-    id: 'directory',
-    component: DirectoryWidget,
-    data: directoryCoverageData,
-    colSpanClass: 'col-span-1',
-    title: 'Directory Coverage',
-  },
-  mentoring: {
-    id: 'mentoring',
-    component: MentoringWidget,
-    data: mentoringFunnelData,
-    colSpanClass: 'col-span-1',
-    title: 'Mentoring Funnel',
-  },
-  jobs: {
-    id: 'jobs',
-    component: JobsWidget,
-    data: jobPipelineData,
-    colSpanClass: 'col-span-1',
-    title: 'Job Pipeline',
-  },
-  events: {
-    id: 'events',
-    component: EventsWidget,
-    data: eventPerformanceData,
-    colSpanClass: 'col-span-1',
-    title: 'Event Check-ins',
-  },
-  campaigns: {
-    id: 'campaigns',
-    component: CampaignsWidget,
-    data: campaignProgressData,
-    colSpanClass: 'md:col-span-2',
-    title: 'Top Active Campaigns',
-  },
-  actions: {
-    id: 'actions',
-    component: ActionsWidget,
-    data: null,
-    colSpanClass: 'col-span-1',
-    title: 'Pending Actions',
-  },
-  highlights: {
-    id: 'highlights',
-    component: HighlightsWidget,
-    data: null,
-    colSpanClass: 'col-span-1',
-    title: 'Upcoming Highlights',
-  },
-}
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(Number(amount || 0))
 
 const defaultLayout = [
   'engagement',
@@ -242,6 +60,142 @@ const defaultLayout = [
   'campaigns',
   'highlights',
 ]
+
+const buildKpiCards = (analytics) => {
+  const kpis = analytics?.kpis || {}
+  const campaignGoal = Number(kpis.campaign_goal || 0)
+  const campaignRaised = Number(kpis.campaign_raised || 0)
+  const campaignPercent = campaignGoal ? Math.round((campaignRaised / campaignGoal) * 100) : 0
+
+  return [
+    {
+      id: 'kpi-1',
+      title: 'Registered Members',
+      icon: Activity,
+      color: 'text-blue-500',
+      value: `${kpis.total_users || 0}`,
+      trend: `${(kpis.trend_percent || 0) > 0 ? '+' : ''}${kpis.trend_percent || 0}%`,
+      trendText: 'vs last period',
+      trendColor: (kpis.trend_percent || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600',
+      trendIcon: TrendingUp,
+      route: '/admin/users',
+    },
+    {
+      id: 'kpi-2',
+      title: 'New Alumni',
+      icon: UserCheck,
+      color: 'text-emerald-500',
+      value: `${kpis.new_alumni || 0}`,
+      subText: `Total alumni: ${kpis.alumni_total || 0}`,
+      route: '/admin/users',
+    },
+    {
+      id: 'kpi-3',
+      title: 'Mentorship Activity',
+      icon: Users,
+      color: 'text-purple-500',
+      value: `${kpis.mentors_total || 0}`,
+      subLeft: 'Active matches',
+      subRightBold: `${kpis.active_matches || 0}`,
+      badgeText: (kpis.mentoring_requests_pending || 0) > 0 ? 'Pending Requests' : 'Healthy',
+      badgeColor:
+        (kpis.mentoring_requests_pending || 0) > 0
+          ? 'bg-rose-100 text-rose-700'
+          : 'bg-emerald-100 text-emerald-700',
+    },
+    {
+      id: 'kpi-4',
+      title: 'Jobs & Internships',
+      icon: Briefcase,
+      color: 'text-indigo-500',
+      value: `${kpis.jobs_posted || 0}`,
+      valueSub: 'posted',
+      subTextBold: `${kpis.applications || 0} applications`,
+      subTextColor: 'text-indigo-600',
+      route: '/jobs',
+    },
+    {
+      id: 'kpi-5',
+      title: 'Event Engagement',
+      icon: Calendar,
+      color: 'text-cyan-500',
+      value: `${kpis.upcoming_events || 0}`,
+      valueSub: 'upcoming',
+      subLeft: 'Avg. RSVPs:',
+      subRightBold: `${kpis.avg_rsvps || 0}`,
+      route: '/admin/events',
+    },
+    {
+      id: 'kpi-6',
+      title: 'Campaign Performance',
+      icon: DollarSign,
+      color: 'text-amber-500',
+      value: formatCurrency(campaignRaised),
+      subTextBold: `${campaignPercent}% of active goals`,
+      subTextColor: 'text-amber-600',
+      route: '/admin/campaigns',
+    },
+  ]
+}
+
+const buildWidgetRegistry = (analytics) => ({
+  engagement: {
+    id: 'engagement',
+    component: EngagementWidget,
+    data: analytics?.charts?.engagement || [],
+    colSpanClass: 'md:col-span-2',
+    title: 'Community Engagement',
+  },
+  directory: {
+    id: 'directory',
+    component: DirectoryWidget,
+    data: analytics?.charts?.directory || [],
+    colSpanClass: 'col-span-1',
+    title: 'Directory Coverage',
+  },
+  mentoring: {
+    id: 'mentoring',
+    component: MentoringWidget,
+    data: analytics?.charts?.mentoring || [],
+    colSpanClass: 'col-span-1',
+    title: 'Mentoring Funnel',
+  },
+  jobs: {
+    id: 'jobs',
+    component: JobsWidget,
+    data: analytics?.charts?.jobs || [],
+    colSpanClass: 'col-span-1',
+    title: 'Job Pipeline',
+  },
+  events: {
+    id: 'events',
+    component: EventsWidget,
+    data: analytics?.charts?.events || [],
+    colSpanClass: 'col-span-1',
+    title: 'Event Check-ins',
+  },
+  campaigns: {
+    id: 'campaigns',
+    component: CampaignsWidget,
+    data: analytics?.charts?.campaigns || [],
+    colSpanClass: 'md:col-span-2',
+    title: 'Top Active Campaigns',
+  },
+  actions: {
+    id: 'actions',
+    component: ActionsWidget,
+    data: analytics?.actions || [],
+    colSpanClass: 'col-span-1',
+    title: 'Pending Actions',
+  },
+  highlights: {
+    id: 'highlights',
+    component: HighlightsWidget,
+    data: analytics?.highlights || [],
+    colSpanClass: 'col-span-1',
+    title: 'Upcoming Highlights',
+  },
+})
 
 const SortableKpiCard = ({ card, isEditing, onRemove }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -264,11 +218,10 @@ const SortableKpiCard = ({ card, isEditing, onRemove }) => {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group relative bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition-all w-full
-        ${isEditing ? 'ring-2 ring-indigo-500 cursor-default' : 'cursor-pointer hover:shadow-md hover:border-slate-200'}
-        ${isDragging ? 'shadow-xl ring-indigo-500/30' : ''}
-      `}
-      onClick={(_e) => {
+      className={`group relative w-full rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all ${
+        isEditing ? 'cursor-default ring-2 ring-indigo-500' : 'cursor-pointer hover:border-slate-200 hover:shadow-md'
+      } ${isDragging ? 'shadow-xl ring-indigo-500/30' : ''}`}
+      onClick={() => {
         if (!isEditing && card.route) navigate(card.route)
       }}
     >
@@ -280,56 +233,49 @@ const SortableKpiCard = ({ card, isEditing, onRemove }) => {
               e.stopPropagation()
               onRemove?.(card.id)
             }}
-            className="absolute top-2 left-2 z-50 px-1.5 py-0.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-md text-[10px] font-semibold tracking-wide shadow-sm"
+            className="absolute left-2 top-2 z-50 rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-rose-600 shadow-sm hover:bg-rose-100"
           >
             Hide
           </button>
           <div
             {...attributes}
             {...listeners}
-            className="absolute top-2 right-2 z-50 p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-md cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-center transition-colors"
+            className="absolute right-2 top-2 z-50 flex items-center justify-center rounded-md bg-indigo-50 p-1.5 text-indigo-600 shadow-sm transition-colors hover:bg-indigo-100"
           >
             <GripHorizontal size={16} />
           </div>
         </>
       )}
 
-      <div className="flex justify-between items-start mt-2">
+      <div className="mt-2 flex items-start justify-between">
         <p className="text-sm font-medium text-slate-600">{card.title}</p>
-        <div className={`p-2 rounded-lg bg-slate-50 ${card.color}`}>
+        <div className={`rounded-lg bg-slate-50 p-2 ${card.color}`}>
           <Icon size={20} />
         </div>
       </div>
-      <p className="text-2xl font-bold text-slate-900 mt-4 flex items-baseline">
+      <p className="mt-4 flex items-baseline text-2xl font-bold text-slate-900">
         {card.value}
-        {card.valueSub && (
-          <span className="text-sm font-normal text-slate-500 ml-1">{card.valueSub}</span>
-        )}
+        {card.valueSub && <span className="ml-1 text-sm font-normal text-slate-500">{card.valueSub}</span>}
       </p>
-      <div className="mt-3 text-xs min-h-[20px]">
+      <div className="mt-3 min-h-[20px] text-xs">
         {card.trend && (
           <div className={`flex items-center font-medium ${card.trendColor}`}>
             {TrendIcon && <TrendIcon size={14} className="mr-1" />}
-            {card.trend} <span className="text-slate-500 font-normal ml-1">{card.trendText}</span>
+            {card.trend}
+            <span className="ml-1 font-normal text-slate-500">{card.trendText}</span>
           </div>
         )}
-        {card.subText && <p className="text-slate-500 font-medium">{card.subText}</p>}
-        {card.subTextBold && (
-          <p className={`${card.subTextColor} font-semibold`}>{card.subTextBold}</p>
-        )}
+        {card.subText && <p className="font-medium text-slate-500">{card.subText}</p>}
+        {card.subTextBold && <p className={`${card.subTextColor} font-semibold`}>{card.subTextBold}</p>}
         {card.subLeft || card.subRightBold ? (
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-slate-500 font-medium">{card.subLeft}</span>
+          <div className="mt-1 flex items-center justify-between">
+            <span className="font-medium text-slate-500">{card.subLeft}</span>
             {card.badgeText && (
-              <span
-                className={`${card.badgeColor} px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase`}
-              >
+              <span className={`${card.badgeColor} rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide`}>
                 {card.badgeText}
               </span>
             )}
-            {card.subRightBold && (
-              <span className="text-slate-900 font-bold">{card.subRightBold}</span>
-            )}
+            {card.subRightBold && <span className="font-bold text-slate-900">{card.subRightBold}</span>}
           </div>
         ) : null}
       </div>
@@ -341,18 +287,30 @@ const AdminDashboard = () => {
   const [dateRange, setDateRange] = useState('30d')
   const [segment, setSegment] = useState('all')
   const [isEditing, setIsEditing] = useState(false)
+  const { analytics, loading, error } = useAdminDashboardAnalytics(dateRange, segment)
 
-  // Load layout from localStorage or use default
+  const currentKpis = buildKpiCards(analytics)
+  const widgetRegistry = buildWidgetRegistry(analytics)
+
   const savedLayout = JSON.parse(localStorage.getItem('adminDashLayout') || 'null')
   const [widgetLayout, setWidgetLayout] = useState(savedLayout || defaultLayout)
 
   const savedKpiOrder = JSON.parse(localStorage.getItem('adminDashKpiOrder') || 'null')
   const [kpiCards, setKpiCards] = useState(() => {
-    if (!savedKpiOrder) return initialKpiCards
-    return savedKpiOrder.map((id) => initialKpiCards.find((c) => c.id === id)).filter(Boolean)
+    if (!savedKpiOrder) return currentKpis
+    return savedKpiOrder.map((id) => currentKpis.find((card) => card.id === id)).filter(Boolean)
   })
 
-  const availableKpiToAdd = initialKpiCards.filter(
+  React.useEffect(() => {
+    setKpiCards((prev) => {
+      const nextMap = new Map(currentKpis.map((card) => [card.id, card]))
+      const ordered = prev.map((card) => nextMap.get(card.id)).filter(Boolean)
+      const missing = currentKpis.filter((card) => !ordered.some((item) => item.id === card.id))
+      return [...ordered, ...missing]
+    })
+  }, [analytics])
+
+  const availableKpiToAdd = currentKpis.filter(
     (baseCard) => !kpiCards.some((activeCard) => activeCard.id === baseCard.id)
   )
 
@@ -365,9 +323,9 @@ const AdminDashboard = () => {
     const { active, over } = event
     if (over && active.id !== over.id) {
       setKpiCards((items) => {
-        const oldI = items.findIndex((i) => i.id === active.id)
-        const newI = items.findIndex((i) => i.id === over.id)
-        return arrayMove(items, oldI, newI)
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+        return arrayMove(items, oldIndex, newIndex)
       })
     }
   }
@@ -376,39 +334,36 @@ const AdminDashboard = () => {
     const { active, over } = event
     if (over && active.id !== over.id) {
       setWidgetLayout((items) => {
-        const oldI = items.indexOf(active.id)
-        const newI = items.indexOf(over.id)
-        return arrayMove(items, oldI, newI)
+        const oldIndex = items.indexOf(active.id)
+        const newIndex = items.indexOf(over.id)
+        return arrayMove(items, oldIndex, newIndex)
       })
     }
   }
 
-  const removeKpiCard = (id) => {
-    setKpiCards((prev) => prev.filter((card) => card.id !== id))
-  }
-
+  const removeKpiCard = (id) => setKpiCards((prev) => prev.filter((card) => card.id !== id))
   const addKpiCard = (id) => {
-    const baseCard = initialKpiCards.find((card) => card.id === id)
-    if (!baseCard) return
-    setKpiCards((prev) => [...prev, baseCard])
+    const baseCard = currentKpis.find((card) => card.id === id)
+    if (baseCard) {
+      setKpiCards((prev) => [...prev, baseCard])
+    }
   }
 
-  const removeWidget = (_id) => setWidgetLayout((prev) => prev.filter((w) => w !== _id))
+  const removeWidget = (id) => setWidgetLayout((prev) => prev.filter((widgetId) => widgetId !== id))
   const addWidget = (id) => setWidgetLayout((prev) => [...prev, id])
 
-  const availableToAdd = Object.keys(WIDGET_REGISTRY).filter((id) => !widgetLayout.includes(id))
+  const availableToAdd = Object.keys(widgetRegistry).filter((id) => !widgetLayout.includes(id))
 
   const saveLayout = () => {
     localStorage.setItem('adminDashLayout', JSON.stringify(widgetLayout))
-    localStorage.setItem('adminDashKpiOrder', JSON.stringify(kpiCards.map((c) => c.id)))
+    localStorage.setItem('adminDashKpiOrder', JSON.stringify(kpiCards.map((card) => card.id)))
     setIsEditing(false)
   }
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
-      {/* Header & Controls */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 text-slate-700 font-medium px-2">
+    <div className="mx-auto max-w-[1400px] space-y-6 pb-10">
+      <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-100 bg-white p-4 shadow-sm md:flex-row md:items-center">
+        <div className="flex items-center gap-2 px-2 font-medium text-slate-700">
           {isEditing ? (
             <Settings2 size={20} className="text-amber-500" />
           ) : (
@@ -425,7 +380,7 @@ const AdminDashboard = () => {
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
-                className="text-sm border-slate-200 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50 hover:bg-slate-100 transition-colors px-3 py-2 border font-medium text-slate-700"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-100 focus:border-indigo-500 focus:ring-indigo-500"
               >
                 <option value="7d">Last 7 days</option>
                 <option value="30d">Last 30 days</option>
@@ -434,7 +389,7 @@ const AdminDashboard = () => {
               <select
                 value={segment}
                 onChange={(e) => setSegment(e.target.value)}
-                className="text-sm border-slate-200 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50 hover:bg-slate-100 transition-colors px-3 py-2 border font-medium text-slate-700"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-100 focus:border-indigo-500 focus:ring-indigo-500"
               >
                 <option value="all">All Segments</option>
                 <option value="alumni">Alumni</option>
@@ -442,81 +397,83 @@ const AdminDashboard = () => {
               </select>
               <button
                 onClick={() => setIsEditing(true)}
-                className="ml-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                className="ml-2 flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200"
               >
                 <Settings2 size={16} /> Customize
               </button>
             </>
           ) : (
-            <>
-              <div className="flex gap-2">
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) addWidget(e.target.value)
-                    e.target.value = ''
-                  }}
-                  className="text-sm border-indigo-200 rounded-lg shadow-sm bg-indigo-50 text-indigo-700 font-semibold px-3 py-2 outline-none"
-                  defaultValue=""
-                >
-                  <option value="" disabled>
-                    + Add Widget
+            <div className="flex gap-2">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) addWidget(e.target.value)
+                  e.target.value = ''
+                }}
+                className="rounded-lg bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm outline-none"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  + Add Widget
+                </option>
+                {availableToAdd.map((id) => (
+                  <option key={id} value={id}>
+                    {widgetRegistry[id].title}
                   </option>
-                  {availableToAdd.map((id) => (
-                    <option key={id} value={id}>
-                      {WIDGET_REGISTRY[id].title}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setWidgetLayout(defaultLayout)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-semibold transition-colors"
-                >
-                  Reset
-                </button>
-                <button
-                  onClick={saveLayout}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm"
-                >
-                  <Save size={16} /> Save Changes
-                </button>
-              </div>
-            </>
+                ))}
+              </select>
+              <button
+                onClick={() => setWidgetLayout(defaultLayout)}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+              >
+                Reset
+              </button>
+              <button
+                onClick={saveLayout}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+              >
+                <Save size={16} /> Save Changes
+              </button>
+            </div>
           )}
         </div>
       </div>
 
       {isEditing && (
-        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-amber-800 text-sm font-medium flex items-center gap-2">
-          <Settings2 size={18} /> You are in Edit Mode. Drag and drop KPI cards and widgets to
-          reorder them, hide KPI cards you do not need, and click "Save Changes" when done. Your
-          layout is saved for this browser.
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+          <Settings2 size={18} /> You are in Edit Mode. Drag and drop KPI cards and widgets to reorder them.
         </div>
       )}
 
-      {/* KPI Cards Row */}
+      {error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+          Loading admin analytics...
+        </div>
+      )}
+
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleKpiDragEnd}>
-        <SortableContext items={kpiCards.map((c) => c.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <SortableContext items={kpiCards.map((card) => card.id)} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {kpiCards.map((card) => (
-              <SortableKpiCard
-                key={card.id}
-                card={card}
-                isEditing={isEditing}
-                onRemove={removeKpiCard}
-              />
+              <SortableKpiCard key={card.id} card={card} isEditing={isEditing} onRemove={removeKpiCard} />
             ))}
           </div>
         </SortableContext>
       </DndContext>
 
       {isEditing && (
-        <div className="flex flex-wrap items-center gap-3 -mt-1">
+        <div className="-mt-1 flex flex-wrap items-center gap-3">
           <select
             onChange={(e) => {
               if (e.target.value) addKpiCard(e.target.value)
               e.target.value = ''
             }}
-            className="text-xs sm:text-sm border-indigo-200 rounded-lg shadow-sm bg-indigo-50 text-indigo-700 font-semibold px-3 py-1.5 outline-none"
+            className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm outline-none sm:text-sm"
             defaultValue=""
           >
             <option value="" disabled>
@@ -531,21 +488,16 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Content Widgets Grid */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleWidgetDragEnd}
-      >
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWidgetDragEnd}>
         <SortableContext items={widgetLayout} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-min">
+          <div className="grid auto-rows-min grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {widgetLayout.map((widgetId) => {
-              const widgetConfig = WIDGET_REGISTRY[widgetId]
+              const widgetConfig = widgetRegistry[widgetId]
               if (!widgetConfig) return null
               const WidgetComponent = widgetConfig.component
 
               return (
-                <div key={widgetId} className={`${widgetConfig.colSpanClass} flex flex-col h-full`}>
+                <div key={widgetId} className={`${widgetConfig.colSpanClass} flex h-full flex-col`}>
                   <DraggableWidget id={widgetId} isEditing={isEditing} onRemove={removeWidget}>
                     <WidgetComponent data={widgetConfig.data} />
                   </DraggableWidget>
@@ -556,9 +508,8 @@ const AdminDashboard = () => {
         </SortableContext>
       </DndContext>
 
-      {/* Empty State when no widgets */}
       {widgetLayout.length === 0 && isEditing && (
-        <div className="border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center text-slate-500 flex flex-col items-center">
+        <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-slate-300 p-12 text-center text-slate-500">
           <Plus size={32} className="mb-2 text-slate-400" />
           <p className="text-lg font-medium">Dashboard is empty</p>
           <p className="text-sm">Use the dropdown above to add widgets</p>

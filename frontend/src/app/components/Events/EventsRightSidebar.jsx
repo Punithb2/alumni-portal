@@ -10,9 +10,7 @@ const EventsRightSidebar = ({ upcomingEvents, pastRecaps, onEventClick }) => {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-semibold text-slate-900">Upcoming Now</h3>
-          <button className="text-sm text-indigo-600 font-medium hover:text-indigo-700">
-            See all
-          </button>
+          <span className="text-sm text-slate-400 font-medium">{upcomingEvents.length} events</span>
         </div>
         <div className="divide-y divide-slate-100">
           {upcomingEvents.slice(0, 3).map((event) => (
