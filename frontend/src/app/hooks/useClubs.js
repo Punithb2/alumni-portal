@@ -2,6 +2,7 @@
 // Custom hook providing reactive state for the Clubs feature using the real backend API
 import { useState, useEffect, useCallback } from 'react'
 import api from 'app/utils/api'
+import { getAvatarDataUrl } from 'app/utils/avatar'
 
 const DEFAULT_COVER_IMAGE =
   'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=1200&h=400'
@@ -85,15 +86,21 @@ const normalizeClub = (club = {}) => {
 const normalizeMember = (member = {}) => ({
   ...member,
   name: getDisplayName(member.user || member),
-  avatar: member.avatar || member.user?.avatar || '',
+  avatar: member.avatar || member.user?.avatar || getAvatarDataUrl(getDisplayName(member.user || member)),
   title: member.title || member.user?.headline || member.user?.role || '',
+  role: member.role
+    ? `${member.role.charAt(0).toUpperCase()}${member.role.slice(1)}`
+    : 'Member',
+  roleValue: member.role || 'member',
   joinedAt: member.joinedAt || member.joined_at || '',
+  userId: member.user?.id ?? member.userId ?? null,
 })
 
 const normalizeJoinRequest = (request = {}) => ({
   ...request,
   name: getDisplayName(request.user || request),
-  avatar: request.avatar || request.user?.avatar || '',
+  avatar:
+    request.avatar || request.user?.avatar || getAvatarDataUrl(getDisplayName(request.user || request)),
   title: request.title || request.user?.headline || '',
   requestedAt: request.requestedAt || request.requested_at || '',
 })
@@ -101,7 +108,8 @@ const normalizeJoinRequest = (request = {}) => ({
 const normalizePost = (post = {}) => ({
   ...post,
   author: post.author || post.author_name || 'Member',
-  avatar: post.avatar || post.author_avatar || '',
+  authorId: post.authorId || post.author_id || null,
+  avatar: post.avatar || post.author_avatar || getAvatarDataUrl(post.author || post.author_name || 'Member'),
   time: post.time || post.created_at || '',
   isPinned: post.isPinned ?? post.is_pinned ?? false,
 })
@@ -252,12 +260,12 @@ export function useClubs() {
     setClubs((prev) => prev.map((c) => (c.id === clubId ? { ...c, is_pending: false } : c)))
   }
 
-  const fetchMembers = async (clubId) => {
+  const fetchMembers = useCallback(async (clubId) => {
     const res = await api.get(`/clubs/${clubId}/members/`)
     const nextMembers = res.data.map(normalizeMember)
     setMembers((prev) => ({ ...prev, [clubId]: nextMembers }))
     return nextMembers
-  }
+  }, [])
 
   const removeMember = async (clubId, membershipId) => {
     await api.delete(`/club-memberships/${membershipId}/`)
@@ -288,12 +296,12 @@ export function useClubs() {
     }))
   }
 
-  const fetchJoinRequests = async (clubId) => {
+  const fetchJoinRequests = useCallback(async (clubId) => {
     const res = await api.get(`/clubs/${clubId}/join_requests/`)
     const nextRequests = res.data.map(normalizeJoinRequest)
     setJoinRequests((prev) => ({ ...prev, [clubId]: nextRequests }))
     return nextRequests
-  }
+  }, [])
 
   const approveJoinRequest = async (clubId, requestId) => {
     await api.post(`/clubs/${clubId}/approve_request/`, { request_id: requestId })
@@ -322,15 +330,21 @@ export function useClubs() {
     }))
   }
 
-  const fetchPosts = async (clubId) => {
+  const fetchPosts = useCallback(async (clubId) => {
     const res = await api.get(`/clubs/${clubId}/posts/`)
     const nextPosts = res.data.map(normalizePost)
     setPosts((prev) => ({ ...prev, [clubId]: nextPosts }))
     return nextPosts
-  }
+  }, [])
 
   const createPost = async (clubId, postData) => {
-    const res = await api.post(`/clubs/${clubId}/create_post/`, postData)
+    const payload = {
+      content: (postData?.content || '').trim(),
+    }
+    const image = getSafeCoverImage(postData?.image)
+    if (image) payload.image = image
+
+    const res = await api.post(`/clubs/${clubId}/create_post/`, payload)
     const nextPost = normalizePost(res.data)
     setPosts((prev) => ({ ...prev, [clubId]: [nextPost, ...(prev[clubId] || [])] }))
     return nextPost
@@ -365,12 +379,12 @@ export function useClubs() {
     }))
   }
 
-  const fetchChat = async (clubId) => {
+  const fetchChat = useCallback(async (clubId) => {
     const res = await api.get(`/clubs/${clubId}/chat/`)
     const nextMessages = res.data.map(normalizeMessage)
     setMessages((prev) => ({ ...prev, [clubId]: nextMessages }))
     return nextMessages
-  }
+  }, [])
 
   const sendMessage = async (clubId, text) => {
     const res = await api.post(`/clubs/${clubId}/send_message/`, { text })

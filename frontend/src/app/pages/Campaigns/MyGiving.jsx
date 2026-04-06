@@ -22,35 +22,46 @@ const STATUS_COLORS = {
   cancelled: 'bg-slate-100 text-slate-500',
 }
 
+const formatCurrency = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`
+
+const getValidDate = (value) => {
+  const nextDate = value ? new Date(value) : null
+  return nextDate && !Number.isNaN(nextDate.getTime()) ? nextDate : null
+}
+
+const formatDate = (value, options) => {
+  const nextDate = getValidDate(value)
+  return nextDate ? nextDate.toLocaleDateString('en-IN', options) : 'Unknown date'
+}
+
 export default function MyGiving() {
-  const { myDonations, cancelRecurring } = useCampaigns()
+  const { myDonations, cancelRecurring, loading, error } = useCampaigns()
   const [yearFilter, setYearFilter] = useState('all')
   const [exportError, setExportError] = useState('')
 
   const years = useMemo(() => {
-    const yr = [...new Set(myDonations.map((d) => new Date(d.date).getFullYear()))].sort(
-      (a, b) => b - a
-    )
-    return yr
+    return [
+      ...new Set(
+        myDonations
+          .map((d) => getValidDate(d.date)?.getFullYear())
+          .filter((year) => Number.isFinite(year))
+      ),
+    ].sort((a, b) => b - a)
   }, [myDonations])
 
   const filtered = useMemo(() => {
     if (yearFilter === 'all') return myDonations
-    return myDonations.filter((d) => new Date(d.date).getFullYear() === Number(yearFilter))
+    return myDonations.filter((d) => getValidDate(d.date)?.getFullYear() === Number(yearFilter))
   }, [myDonations, yearFilter])
 
-  const totalDonated = myDonations.reduce(
-    (sum, d) => sum + (typeof d.amount === 'number' ? d.amount : 0),
-    0
-  )
-  const campaignsSupported = new Set(myDonations.map((d) => d.campaignId)).size
+  const totalDonated = myDonations.reduce((sum, d) => sum + Number(d.amount || 0), 0)
+  const campaignsSupported = new Set(
+    myDonations.map((d) => d.campaignId).filter((campaignId) => campaignId !== null)
+  ).size
   const recurringDonations = myDonations.filter(
-    (d) => d.recurring && d.status !== 'cancelled' && typeof d.amount === 'number'
+    (d) => d.recurring && d.status !== 'cancelled'
   )
-  const yearTotal = filtered.reduce(
-    (sum, d) => sum + (typeof d.amount === 'number' ? d.amount : 0),
-    0
-  )
+  const yearTotal = filtered.reduce((sum, d) => sum + Number(d.amount || 0), 0)
 
   const handleCancel = (donationId) => {
     if (window.confirm('Cancel this recurring donation? This cannot be undone.')) {
@@ -70,8 +81,8 @@ export default function MyGiving() {
 
     // CSV Rows
     const rows = filtered.map((d) => {
-      const date = new Date(d.date).toLocaleDateString('en-IN')
-      const title = `"${d.campaignTitle.replace(/"/g, '""')}"` // Handle commas in titles
+      const date = formatDate(d.date)
+      const title = `"${String(d.campaignTitle || 'Campaign').replace(/"/g, '""')}"`
       const amount = d.amount
       const status = d.status
       const freq = d.recurring ? d.frequency || 'monthly' : 'one-time'
@@ -120,6 +131,16 @@ export default function MyGiving() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left/Main Content Column */}
         <div className="lg:col-span-8 space-y-8">
+          {loading && (
+            <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+              Loading your donation history...
+            </div>
+          )}
+          {error && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          )}
           {exportError && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
               {exportError}
@@ -135,7 +156,7 @@ export default function MyGiving() {
                 Lifetime
               </p>
               <p className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-                ₹{totalDonated.toLocaleString()}
+                {formatCurrency(totalDonated)}
               </p>
             </div>
             <div className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm">
@@ -220,13 +241,13 @@ export default function MyGiving() {
                     <div className="flex-1 min-w-0">
                       <Link
                         to={`/campaigns/${d.campaignId}`}
-                        className="text-base font-bold text-slate-900 group-hover:text-violet-600 truncate block transition-colors"
+                          className="text-base font-bold text-slate-900 group-hover:text-violet-600 truncate block transition-colors"
                       >
-                        {d.campaignTitle}
+                        {d.campaignTitle || 'Campaign'}
                       </Link>
                       <div className="flex flex-wrap items-center gap-2 mt-1 -ml-1 text-sm">
                         <span className="text-slate-500 px-1">
-                          {new Date(d.date).toLocaleDateString('en-IN', {
+                          {formatDate(d.date, {
                             day: 'numeric',
                             month: 'short',
                             year: 'numeric',
@@ -247,7 +268,7 @@ export default function MyGiving() {
 
                     <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0">
                       <p className="text-lg font-extrabold text-slate-900 tracking-tight">
-                        {typeof d.amount === 'number' ? `₹${d.amount.toLocaleString()}` : d.amount}
+                        {formatCurrency(d.amount)}
                       </p>
                       <span
                         className={`text-[10px] uppercase tracking-widest font-extrabold px-2 py-0.5 rounded-md ${STATUS_COLORS[d.status] || 'bg-slate-100 text-slate-500'}`}
@@ -259,7 +280,7 @@ export default function MyGiving() {
                     <div className="hidden sm:flex shrink-0 ml-4 items-center">
                       <button
                         onClick={() => {
-                          const content = `Receipt for Donation\n\nCampaign: ${d.campaignTitle}\nAmount: INR ${d.amount}\nDate: ${new Date(d.date).toLocaleDateString('en-IN')}\nStatus: ${d.status}\nFrequency: ${d.recurring ? d.frequency : 'One-time'}`
+                          const content = `Receipt for Donation\n\nCampaign: ${d.campaignTitle || 'Campaign'}\nAmount: INR ${d.amount}\nDate: ${formatDate(d.date)}\nStatus: ${d.status}\nFrequency: ${d.recurring ? d.frequency || 'monthly' : 'One-time'}`
                           const blob = new Blob([content], { type: 'text/plain' })
                           const url = URL.createObjectURL(blob)
                           const link = document.createElement('a')
@@ -286,7 +307,7 @@ export default function MyGiving() {
                   Totals for {yearFilter}
                 </span>
                 <span className="text-base font-extrabold text-slate-900">
-                  ₹{yearTotal.toLocaleString()}
+                  {formatCurrency(yearTotal)}
                 </span>
               </div>
             )}
@@ -310,7 +331,7 @@ export default function MyGiving() {
                     Total Impact
                   </p>
                   <p className="text-2xl font-extrabold tracking-tight">
-                    ₹{totalDonated.toLocaleString()}
+                    {formatCurrency(totalDonated)}
                   </p>
                 </div>
               </div>
@@ -349,7 +370,7 @@ export default function MyGiving() {
                   >
                     <div className="flex justify-between items-start mb-2">
                       <p className="text-sm font-bold text-slate-900 line-clamp-1 pr-6">
-                        {d.campaignTitle}
+                        {d.campaignTitle || 'Campaign'}
                       </p>
                       <button
                         onClick={() => handleCancel(d.id)}
@@ -361,7 +382,7 @@ export default function MyGiving() {
                     </div>
                     <div className="flex items-end gap-2">
                       <span className="text-xl font-extrabold text-violet-700 tracking-tight">
-                        {typeof d.amount === 'number' ? `₹${d.amount.toLocaleString()}` : d.amount}
+                        {formatCurrency(d.amount)}
                       </span>
                       <span className="text-xs text-slate-500 font-semibold mb-1">
                         / {d.frequency || 'month'}
@@ -369,7 +390,7 @@ export default function MyGiving() {
                     </div>
                     <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-3 bg-slate-50 inline-block px-2 py-1 rounded">
                       Active since{' '}
-                      {new Date(d.date).toLocaleDateString('en-IN', {
+                      {formatDate(d.date, {
                         month: 'short',
                         year: 'numeric',
                       })}

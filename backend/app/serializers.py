@@ -3,13 +3,14 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
+from collections import Counter
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from .models import (
-    UserProfile, WorkExperience, Education, Job, JobApplication,
+    UserProfile, WorkExperience, Education, Job, JobApplication, SavedJob,
     HiringDrive, MentorProfile, MentoringSession, MentorGoal,
     MentoringRequest, Post, Comment, ForumCategory, ForumTopic,
     ForumReply, Conversation, Message, ConnectionRequest, Event, NewsArticle, Notification,
@@ -27,6 +28,42 @@ def validate_text_length(value, field_name, max_length):
     if text and len(text) > max_length:
         raise serializers.ValidationError(f'{field_name} cannot exceed {max_length} characters.')
     return value
+
+
+def get_connection_relationship(current_user, other_user):
+    if not current_user or not current_user.is_authenticated or not other_user or current_user.id == other_user.id:
+        return None
+    return ConnectionRequest.objects.filter(
+        Q(requester=current_user, recipient=other_user) |
+        Q(requester=other_user, recipient=current_user)
+    ).order_by('-created_at').first()
+
+
+def get_connection_status_for_user(current_user, other_user):
+    if not current_user or not current_user.is_authenticated:
+        return 'none'
+    if not other_user:
+        return 'none'
+    if current_user.id == other_user.id:
+        return 'self'
+
+    rel = get_connection_relationship(current_user, other_user)
+    if not rel:
+        return 'none'
+    if rel.status == 'accepted':
+        return 'connected'
+    if rel.status == 'pending':
+        if rel.requester_id == current_user.id:
+            return 'outgoing_pending'
+        return 'incoming_pending'
+    return 'none'
+
+
+def get_connection_request_id_for_user(current_user, other_user):
+    rel = get_connection_relationship(current_user, other_user)
+    if rel and rel.status == 'pending':
+        return rel.id
+    return None
 
 # ==========================================
 # 1. CORE DIRECTORY & PROFILES
@@ -196,31 +233,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def _get_relationship(self, obj):
         request = self.context.get('request')
         current_user = getattr(request, 'user', None)
-        if not current_user or not current_user.is_authenticated or obj.user_id == current_user.id:
-            return None
-        return ConnectionRequest.objects.filter(
-            Q(requester=current_user, recipient=obj.user) |
-            Q(requester=obj.user, recipient=current_user)
-        ).order_by('-created_at').first()
+        return get_connection_relationship(current_user, obj.user)
 
     def get_connection_status(self, obj):
         request = self.context.get('request')
         current_user = getattr(request, 'user', None)
-        if not current_user or not current_user.is_authenticated:
-            return 'none'
-        if obj.user_id == current_user.id:
-            return 'self'
-
-        rel = self._get_relationship(obj)
-        if not rel:
-            return 'none'
-        if rel.status == 'accepted':
-            return 'connected'
-        if rel.status == 'pending':
-            if rel.requester_id == current_user.id:
-                return 'outgoing_pending'
-            return 'incoming_pending'
-        return 'none'
+        return get_connection_status_for_user(current_user, obj.user)
 
     def get_connection_request_id(self, obj):
         rel = self._get_relationship(obj)
@@ -260,6 +278,15 @@ class JobApplicationSerializer(serializers.ModelSerializer):
 
     def validate_cover_letter(self, value):
         return validate_text_length(value, 'Cover letter', 3000)
+
+class SavedJobSerializer(serializers.ModelSerializer):
+    job_title = serializers.CharField(source='job.title', read_only=True)
+    job_company = serializers.CharField(source='job.company', read_only=True)
+
+    class Meta:
+        model = SavedJob
+        fields = '__all__'
+        read_only_fields = ['user']
 
 class HiringDriveSerializer(serializers.ModelSerializer):
     registered = serializers.SerializerMethodField()
@@ -315,6 +342,7 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = '__all__'
+        read_only_fields = ['author', 'created_at']
 
     def get_author_avatar(self, obj):
         return get_user_avatar(obj.author)
@@ -327,16 +355,56 @@ class PostSerializer(serializers.ModelSerializer):
     author_avatar = serializers.SerializerMethodField()
     comments = CommentSerializer(many=True, read_only=True)
     comment_count = serializers.SerializerMethodField()
+    author_id = serializers.IntegerField(source='author.id', read_only=True)
+    author_profile_id = serializers.SerializerMethodField()
+    author_role = serializers.SerializerMethodField()
+    author_connection_status = serializers.SerializerMethodField()
+    author_connection_request_id = serializers.SerializerMethodField()
+    current_user_reaction = serializers.SerializerMethodField()
+    reaction_counts = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         fields = '__all__'
+        read_only_fields = ['author', 'created_at']
         
     def get_comment_count(self, obj):
         return obj.comments.count()
 
     def get_author_avatar(self, obj):
         return get_user_avatar(obj.author)
+
+    def get_author_profile_id(self, obj):
+        profile = getattr(obj.author, 'profile', None)
+        return getattr(profile, 'id', None)
+
+    def get_author_role(self, obj):
+        profile = getattr(obj.author, 'profile', None)
+        return getattr(profile, 'role', '') or ''
+
+    def get_author_connection_status(self, obj):
+        request = self.context.get('request')
+        current_user = getattr(request, 'user', None)
+        return get_connection_status_for_user(current_user, obj.author)
+
+    def get_author_connection_request_id(self, obj):
+        request = self.context.get('request')
+        current_user = getattr(request, 'user', None)
+        return get_connection_request_id_for_user(current_user, obj.author)
+
+    def get_current_user_reaction(self, obj):
+        request = self.context.get('request')
+        current_user = getattr(request, 'user', None)
+        if not current_user or not current_user.is_authenticated:
+            return None
+        reaction = obj.reactions.filter(user=current_user).first()
+        return reaction.reaction if reaction else None
+
+    def get_reaction_counts(self, obj):
+        values = list(obj.reactions.values_list('reaction', flat=True))
+        if values:
+            return dict(Counter(values))
+        return obj.reaction_counts or {}
 
     def validate_content(self, value):
         return validate_text_length(value, 'Post content', 5000)
@@ -535,6 +603,7 @@ class ClubMembershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClubMembership
         fields = '__all__'
+        read_only_fields = ['club', 'user', 'joined_at']
 
     def get_avatar(self, obj):
         return get_user_avatar(obj.user)
@@ -556,11 +625,12 @@ class ClubPostCommentSerializer(serializers.ModelSerializer):
 class ClubPostSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.get_full_name', read_only=True)
     author_avatar = serializers.SerializerMethodField()
+    author_id = serializers.IntegerField(source='author.id', read_only=True)
 
     class Meta:
         model = ClubPost
         fields = '__all__'
-        read_only_fields = ['author', 'likes']
+        read_only_fields = ['author', 'club', 'likes', 'is_pinned', 'created_at']
 
     def get_author_avatar(self, obj):
         return get_user_avatar(obj.author)

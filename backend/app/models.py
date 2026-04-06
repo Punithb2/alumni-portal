@@ -87,6 +87,7 @@ class Job(models.Model):
     job_type = models.CharField(max_length=50) # full_time, internship
     status = models.CharField(max_length=50, default='active') # active, closed
     is_remote = models.BooleanField(default=False)
+    can_refer = models.BooleanField(default=False)
     description = models.TextField()
     requirements = models.TextField(blank=True)
     salary_min = models.IntegerField(null=True, blank=True)
@@ -117,6 +118,20 @@ class JobApplication(models.Model):
         indexes = [
             models.Index(fields=['applicant', 'status']),
             models.Index(fields=['job', 'status']),
+        ]
+
+class SavedJob(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_jobs')
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='saved_by_users')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'job'], name='uniq_saved_job_per_user'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['job']),
         ]
 
 class HiringDrive(models.Model):
@@ -200,6 +215,18 @@ class Comment(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class PostReaction(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='reactions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='post_reactions')
+    reaction = models.CharField(max_length=16)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['post', 'user'], name='uniq_post_reaction_per_user'),
+        ]
 
 
 # ==========================================

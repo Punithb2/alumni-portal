@@ -7,11 +7,12 @@ from rest_framework.exceptions import NotFound
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.utils import timezone
+from collections import Counter
 from . import models
 from . import permissions as custom_permissions
 from .serializers import (
     UserProfileSerializer, UserRegistrationSerializer, WorkExperienceSerializer,
-    EducationSerializer, JobSerializer, JobApplicationSerializer,
+    EducationSerializer, JobSerializer, JobApplicationSerializer, SavedJobSerializer,
     HiringDriveSerializer, MentorProfileSerializer, MentoringSessionSerializer,
     MentoringRequestSerializer, PostSerializer, CommentSerializer,
     ForumTopicSerializer, ForumCategorySerializer, ForumReplySerializer,
@@ -269,6 +270,20 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
             raise ValidationError({'non_field_errors': ['You have already applied for this job.']})
         serializer.save(applicant=self.request.user)
 
+class SavedJobViewSet(viewsets.ModelViewSet):
+    serializer_class = SavedJobSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        return models.SavedJob.objects.filter(user=self.request.user).select_related('job').order_by('-created_at')
+
+    def perform_create(self, serializer):
+        job = serializer.validated_data.get('job')
+        if models.SavedJob.objects.filter(user=self.request.user, job=job).exists():
+            raise ValidationError({'non_field_errors': ['This job is already saved.']})
+        serializer.save(user=self.request.user)
+
 class HiringDriveViewSet(viewsets.ModelViewSet):
     queryset = models.HiringDrive.objects.all()
     serializer_class = HiringDriveSerializer
@@ -322,7 +337,13 @@ class MentoringRequestViewSet(viewsets.ModelViewSet):
 # ==========================================
 
 class PostViewSet(viewsets.ModelViewSet):
-    queryset = models.Post.objects.select_related('author').prefetch_related('comments').order_by('-created_at').all()
+    queryset = (
+        models.Post.objects
+        .select_related('author', 'author__profile')
+        .prefetch_related('comments__author__profile', 'reactions')
+        .order_by('-created_at')
+        .all()
+    )
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -331,6 +352,29 @@ class PostViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def react(self, request, pk=None):
+        post = self.get_object()
+        reaction = (request.data.get('reaction') or '').strip()
+        if not reaction:
+            raise ValidationError({'reaction': ['Reaction is required.']})
+
+        existing_reaction = post.reactions.filter(user=request.user).first()
+        if existing_reaction and existing_reaction.reaction == reaction:
+            existing_reaction.delete()
+        elif existing_reaction:
+            existing_reaction.reaction = reaction
+            existing_reaction.save(update_fields=['reaction'])
+        else:
+            models.PostReaction.objects.create(post=post, user=request.user, reaction=reaction)
+
+        counts = dict(Counter(post.reactions.values_list('reaction', flat=True)))
+        post.reaction_counts = counts
+        post.save(update_fields=['reaction_counts'])
+
+        serializer = self.get_serializer(post)
+        return Response(serializer.data)
 
 class CommentViewSet(viewsets.ModelViewSet):
     queryset = models.Comment.objects.all()
@@ -879,3 +923,52 @@ class ClubPostViewSet(viewsets.ModelViewSet):
         post.is_pinned = not post.is_pinned
         post.save()
         return Response({'is_pinned': post.is_pinned})
+
+
+class ClubMembershipViewSet(viewsets.ModelViewSet):
+    queryset = models.ClubMembership.objects.select_related('club', 'user').all()
+    serializer_class = ClubMembershipSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
+
+    def _is_platform_admin(self, user):
+        return getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+
+    def _is_club_manager(self, club, user):
+        if self._is_platform_admin(user):
+            return True
+        membership = club.memberships.filter(user=user).first()
+        return bool(membership and membership.role in ['owner', 'admin', 'moderator'])
+
+    def get_queryset(self):
+        return self.queryset.filter(club__memberships__user=self.request.user).distinct()
+
+    def partial_update(self, request, *args, **kwargs):
+        membership = self.get_object()
+        if not self._is_club_manager(membership.club, request.user):
+            raise PermissionDenied('You are not allowed to update members.')
+
+        new_role = request.data.get('role')
+        allowed_roles = {'member', 'moderator', 'admin'}
+        if new_role not in allowed_roles:
+            raise ValidationError({'role': [f'Role must be one of: {", ".join(sorted(allowed_roles))}.']})
+        if membership.role == 'owner':
+            raise ValidationError({'role': ['Owner role cannot be changed here.']})
+
+        membership.role = new_role
+        membership.save(update_fields=['role'])
+        serializer = self.get_serializer(membership, context={'request': request})
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        membership = self.get_object()
+        if not self._is_club_manager(membership.club, request.user):
+            raise PermissionDenied('You are not allowed to remove members.')
+        if membership.role == 'owner':
+            raise ValidationError({'detail': ['Owner cannot be removed from the club.']})
+
+        club = membership.club
+        membership.delete()
+        club.members_count = max(0, club.members_count - 1)
+        club.save(update_fields=['members_count'])
+        return Response(status=status.HTTP_204_NO_CONTENT)

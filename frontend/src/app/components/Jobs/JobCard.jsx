@@ -1,7 +1,14 @@
 import React from 'react'
-import { Building2 } from 'lucide-react'
+import { Bookmark, BookmarkCheck, Building2 } from 'lucide-react'
 
-const JobCard = ({ job, onApply }) => {
+const JobCard = ({
+  job,
+  onApply,
+  onSave,
+  isSaved = false,
+  actionLabel = 'Apply',
+  isSaving = false,
+}) => {
   // Determine badge styling based on job type or location
   const typeLower = job.type?.toLowerCase() || ''
   const locationLower = job.location?.toLowerCase() || ''
@@ -47,7 +54,20 @@ const JobCard = ({ job, onApply }) => {
       </div>
 
       {/* Action */}
-      <div className="flex items-center">
+      <div className="flex items-center gap-3">
+        {onSave && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onSave(job.id)
+            }}
+            disabled={isSaving}
+            className={`p-2 rounded-full border transition-colors ${isSaved ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+            aria-label={isSaved ? 'Unsave job' : 'Save job'}
+          >
+            {isSaved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -55,7 +75,7 @@ const JobCard = ({ job, onApply }) => {
           }}
           className="px-6 py-1.5 border-2 border-blue-200 text-blue-500 font-semibold text-sm rounded-full hover:bg-blue-50 transition-colors"
         >
-          Apply
+          {actionLabel}
         </button>
       </div>
     </div>

@@ -62,20 +62,8 @@ const TABS = [
 // ═══════════════════════════════════════════════════════════════
 // 1) FEED TAB
 // ═══════════════════════════════════════════════════════════════
-const FeedTab = ({
-  user,
-  posts,
-  isAdmin,
-  onCreatePost,
-  onLike,
-  onComment,
-  onReply,
-  onDelete,
-  onPin,
-  likedPosts,
-}) => {
+const FeedTab = ({ user, posts, isAdmin, onCreatePost, onLike, onDelete, onPin, likedPosts }) => {
   const [feedMsg, setFeedMsg] = useState('')
-  const [feedImage, setFeedImage] = useState(null)
   const [expandedComments, setExpandedComments] = useState(new Set())
   const [commentInputs, setCommentInputs] = useState({})
   const [replyInputs, setReplyInputs] = useState({})
@@ -94,53 +82,24 @@ const FeedTab = ({
     }, 2000)
   }
 
-  const fileInputRef = useRef(null)
-
   const handlePost = (e) => {
     e.preventDefault()
-    if (!feedMsg.trim() && !feedImage) return
-    onCreatePost({ content: feedMsg, image: feedImage })
+    if (!feedMsg.trim()) return
+    onCreatePost({ content: feedMsg })
     setFeedMsg('')
-    setFeedImage(null)
   }
 
   const toggleComments = (postId) => {
     setExpandedComments((prev) => {
-      const s = new Set(prev)
-      s.has(postId) ? s.delete(postId) : s.add(postId)
-      return s
-    })
-  }
-
-  const handleCommentSubmit = (postId) => {
-    const txt = commentInputs[postId]?.trim()
-    if (!txt) return
-    onComment(postId, {
-      author: user?.firstName ? `${user.firstName} ${user.lastName}` : 'You',
-      avatar:
-        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150',
-      text: txt,
-      replies: [],
-    })
-    setCommentInputs((prev) => ({ ...prev, [postId]: '' }))
-  }
-
-  const handleReplySubmit = (postId, commentId) => {
-    const txt = replyInputs[commentId]?.trim()
-    if (!txt) return
-    onReply?.(postId, commentId, {
-      author: user?.firstName ? `${user.firstName} ${user.lastName}` : 'You',
-      avatar:
-        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150&h=150',
-      text: txt,
-    })
-    setReplyInputs((prev) => ({ ...prev, [commentId]: '' }))
-    setReplyBoxes((prev) => {
-      const next = { ...prev }
-      delete next[commentId]
+      const next = new Set(prev)
+      next.has(postId) ? next.delete(postId) : next.add(postId)
       return next
     })
   }
+
+  const handleCommentSubmit = () => {}
+
+  const handleReplySubmit = () => {}
 
   const sortedPosts = [...(posts || [])].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0))
 
@@ -161,46 +120,13 @@ const FeedTab = ({
               placeholder="Share an update, ask a question, or post a link…"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none min-h-20 font-medium placeholder:text-slate-400 transition-all"
             />
-            {feedImage && (
-              <div className="relative inline-block mt-2">
-                <img
-                  src={feedImage}
-                  alt="Upload preview"
-                  className="w-32 h-32 object-cover rounded-xl border border-slate-200"
-                />
-                <button
-                  onClick={() => setFeedImage(null)}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            )}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files[0]
-                    if (file) {
-                      setFeedImage(URL.createObjectURL(file))
-                      e.target.value = '' // Reset input
-                    }
-                  }}
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                >
-                  <ImageIcon size={18} />
-                </button>
-              </div>
+              <p className="text-xs text-slate-400 font-medium">
+                Club post attachments are not enabled yet.
+              </p>
               <button
                 onClick={handlePost}
-                disabled={!feedMsg.trim() && !feedImage}
+                disabled={!feedMsg.trim()}
                 className="px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Post
@@ -254,7 +180,7 @@ const FeedTab = ({
                     <Pin size={16} />
                   </button>
                 )}
-                {(isAdmin || post.authorId === 'me') && (
+                {(isAdmin || String(post.authorId) === String(user?.id)) && (
                   <button
                     onClick={() => onDelete(post.id)}
                     className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -294,11 +220,11 @@ const FeedTab = ({
 
               <button
                 onClick={() => toggleComments(post.id)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-all"
+                disabled
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm text-slate-400 cursor-not-allowed"
               >
                 <MessageSquare size={16} />
-                {post.comments?.length > 0 && post.comments.length}
-                <span className="hidden sm:inline">Comment</span>
+                <span className="hidden sm:inline">Comments unavailable</span>
               </button>
 
               <button
@@ -705,7 +631,12 @@ const MembersTab = ({
                     {isAdmin && m.role !== 'Owner' && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
-                          onClick={() => onPromoteMember(m.id)}
+                          onClick={() =>
+                            onPromoteMember(
+                              m.id,
+                              m.roleValue === 'moderator' ? 'member' : 'moderator'
+                            )
+                          }
                           title={
                             m.role === 'Moderator' ? 'Demote to Member' : 'Promote to Moderator'
                           }
@@ -1045,6 +976,10 @@ const ClubDetail = ({ groupId }) => {
     joinClub,
     leaveClub,
     cancelRequest,
+    fetchPosts,
+    fetchMembers,
+    fetchJoinRequests,
+    fetchChat,
     createPost,
     deletePost,
     likePost,
@@ -1056,18 +991,20 @@ const ClubDetail = ({ groupId }) => {
     sendMessage,
   } = useClubs()
 
-  const group = clubs.find((c) => c.id === groupId) || clubs[0]
+  const group = clubs.find((c) => String(c.id) === String(groupId)) || clubs[0]
   const [activeTab, setActiveTab] = useState('feed')
   const [likedPosts, setLikedPosts] = useState(new Set())
 
   const isJoined = joinedIds.has(group?.id)
   const isPending = pendingIds.has(group?.id)
-  const isAdmin = user?.role === 'University' || user?.role === 'SA'
+  const isAdmin = user?.role === 'admin'
   // Treat the current user as a group admin if they're in the members list as Owner/Moderator
   const isGroupAdmin =
     isAdmin ||
     (members[group?.id] || []).some(
-      (m) => m.id === 'me' && (m.role === 'Owner' || m.role === 'Moderator')
+      (m) =>
+        String(m.userId) === String(user?.id) &&
+        ['owner', 'admin', 'moderator'].includes(m.roleValue)
     )
 
   const groupPosts = posts[group?.id] || []
@@ -1075,6 +1012,16 @@ const ClubDetail = ({ groupId }) => {
   const groupRequests = joinRequests[group?.id] || []
   const groupMessages = messages[group?.id] || []
   const groupEvents = []
+
+  useEffect(() => {
+    if (!group?.id) return
+    fetchPosts(group.id)
+    fetchMembers(group.id)
+    fetchChat(group.id)
+    if (isGroupAdmin) {
+      fetchJoinRequests(group.id)
+    }
+  }, [group?.id, isGroupAdmin, fetchPosts, fetchMembers, fetchChat, fetchJoinRequests])
 
   const handleJoinToggle = () => {
     if (isJoined) {
@@ -1243,8 +1190,6 @@ const ClubDetail = ({ groupId }) => {
               likedPosts={likedPosts}
               onCreatePost={(postData) => createPost(group.id, postData)}
               onLike={handleLike}
-              onComment={() => {}}
-              onReply={() => {}}
               onDelete={(postId) => deletePost(group.id, postId)}
               onPin={(postId) => pinPost(group.id, postId)}
             />
@@ -1298,7 +1243,7 @@ const ClubDetail = ({ groupId }) => {
                 <span className="flex items-center gap-2">
                   <Crown size={16} className="text-amber-500" /> Created By
                 </span>
-                <span className="text-slate-900 font-bold">Admin</span>
+                <span className="text-slate-900 font-bold">{group.createdByName || 'Unknown'}</span>
               </div>
             </div>
           </div>

@@ -13,6 +13,7 @@ router.register(r'educations', views.EducationViewSet, basename='education')
 # Job Board
 router.register(r'jobs', views.JobViewSet, basename='job')
 router.register(r'job-applications', views.JobApplicationViewSet, basename='job-application')
+router.register(r'saved-jobs', views.SavedJobViewSet, basename='saved-job')
 router.register(r'hiring-drives', views.HiringDriveViewSet, basename='hiring-drive')
 
 # Mentorship
@@ -46,6 +47,7 @@ router.register(r'donations', views.DonationViewSet, basename='donation')
 
 # Clubs
 router.register(r'clubs', views.ClubViewSet, basename='club')
+router.register(r'club-memberships', views.ClubMembershipViewSet, basename='club-membership')
 router.register(r'club-posts', views.ClubPostViewSet, basename='club-post')
 
 urlpatterns = [

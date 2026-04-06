@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from 'app/utils/api'
 import { getAvatarDataUrl } from 'app/utils/avatar'
 
-const normalizePostType = (value) => {
-  const mapped = String(value || 'UPDATE').toUpperCase()
-  if (['UPDATE', 'ACHIEVEMENT', 'QUESTION', 'EVENT'].includes(mapped)) return mapped
-  return 'UPDATE'
+const ROLE_LABELS = {
+  alumni: 'Alumni',
+  student: 'Student',
+  admin: 'Admin',
 }
 
 const formatTimeAgo = (value) => {
@@ -22,54 +22,57 @@ const formatTimeAgo = (value) => {
   return `${days}d ago`
 }
 
-const toUiPost = (post) => {
+const normalizeComment = (comment = {}) => ({
+  id: comment.id,
+  author: comment.author_name || 'Unknown',
+  avatar: comment.author_avatar || getAvatarDataUrl(comment.author_name || 'User'),
+  text: comment.content || '',
+  time: formatTimeAgo(comment.created_at),
+  createdAt: comment.created_at || null,
+})
+
+const normalizePost = (post = {}) => {
   const authorName = post.author_name || 'Unknown'
-  const roleLabel = post.author_role || 'Community'
+  const authorRole = ROLE_LABELS[post.author_role] || post.author_role || 'Community'
+  const comments = Array.isArray(post.comments) ? post.comments.map(normalizeComment) : []
+
   return {
     id: post.id,
     author: authorName,
-    role: roleLabel,
-    avatar:
-      post.author_avatar ||
-      getAvatarDataUrl(authorName),
-    verified: false,
-    verifiedType: null,
+    authorId: post.author_id ?? null,
+    authorProfileId: post.author_profile_id ?? null,
+    authorConnectionStatus: post.author_connection_status ?? 'none',
+    authorConnectionRequestId: post.author_connection_request_id ?? null,
+    role: authorRole,
+    avatar: post.author_avatar || getAvatarDataUrl(authorName),
     time: formatTimeAgo(post.created_at),
-    type: normalizePostType(post.post_type),
     content: post.content || '',
-    images: [],
+    createdAt: post.created_at || null,
     reactions: post.reaction_counts || {},
-    comments: post.comment_count || 0,
-    shares: 0,
-    mockComments: (post.comments || []).map((c) => ({
-      id: c.id,
-      author: c.author_name || 'Unknown',
-      avatar:
-        c.author_avatar ||
-        getAvatarDataUrl(c.author_name || 'User'),
-      text: c.content || '',
-      time: formatTimeAgo(c.created_at),
-      likes: 0,
-      replies: [],
-    })),
+    myReaction: post.current_user_reaction || null,
+    comments,
+    commentCount: post.comment_count ?? comments.length,
   }
 }
+
+const extractList = (payload) => payload?.results ?? payload ?? []
 
 export const useFeed = () => {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [actionError, setActionError] = useState(null)
 
   const fetchPosts = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const res = await api.get('/posts/')
-      const data = res.data.results ?? res.data
+      const data = extractList(res.data)
       setPosts(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Failed to load posts:', err)
-      setError('Failed to load posts.')
+      setError('Failed to load feed.')
     } finally {
       setLoading(false)
     }
@@ -79,24 +82,98 @@ export const useFeed = () => {
     fetchPosts()
   }, [fetchPosts])
 
-  const addPost = async ({ text, postType }) => {
-    const payload = {
-      content: text,
-      reaction_counts: {},
+  const addPost = async ({ text }) => {
+    setActionError(null)
+    try {
+      const res = await api.post('/posts/', {
+        content: text,
+        reaction_counts: {},
+      })
+      setPosts((prev) => [res.data, ...prev])
+      return normalizePost(res.data)
+    } catch (err) {
+      const message = err?.response?.data?.detail || 'Failed to create post.'
+      setActionError(message)
+      throw err
     }
-    const res = await api.post('/posts/', payload)
-    setPosts((prev) => [res.data, ...prev])
-    return res.data
   }
 
-  const uiPosts = useMemo(() => posts.map(toUiPost), [posts])
+  const addComment = async (postId, content) => {
+    setActionError(null)
+    try {
+      const res = await api.post('/comments/', {
+        post: postId,
+        content,
+      })
+
+      setPosts((prev) =>
+        prev.map((post) => {
+          if (String(post.id) !== String(postId)) return post
+          const nextComments = [res.data, ...(Array.isArray(post.comments) ? post.comments : [])]
+          return {
+            ...post,
+            comments: nextComments,
+            comment_count: nextComments.length,
+          }
+        })
+      )
+
+      return normalizeComment(res.data)
+    } catch (err) {
+      const message = err?.response?.data?.detail || 'Failed to add comment.'
+      setActionError(message)
+      throw err
+    }
+  }
+
+  const reactToPost = async (postId, reaction) => {
+    setActionError(null)
+    try {
+      const res = await api.post(`/posts/${postId}/react/`, { reaction })
+      setPosts((prev) => prev.map((post) => (String(post.id) === String(postId) ? res.data : post)))
+      return normalizePost(res.data)
+    } catch (err) {
+      const message = err?.response?.data?.detail || 'Failed to react to post.'
+      setActionError(message)
+      throw err
+    }
+  }
+
+  const followAuthor = async (profileId) => {
+    if (!profileId) return null
+    setActionError(null)
+    try {
+      await api.post(`/profiles/${profileId}/send_connection_request/`)
+      setPosts((prev) =>
+        prev.map((post) =>
+          String(post.author_profile_id) === String(profileId)
+            ? {
+                ...post,
+                author_connection_status: 'outgoing_pending',
+              }
+            : post
+        )
+      )
+      return true
+    } catch (err) {
+      const message = err?.response?.data?.detail || 'Failed to follow this member.'
+      setActionError(Array.isArray(message) ? message[0] : message)
+      throw err
+    }
+  }
+
+  const uiPosts = useMemo(() => posts.map(normalizePost), [posts])
 
   return {
     posts,
     uiPosts,
     loading,
     error,
+    actionError,
     addPost,
+    addComment,
+    reactToPost,
+    followAuthor,
     refetch: fetchPosts,
   }
 }

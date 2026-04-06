@@ -1,85 +1,92 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import api from '../../utils/api'
-
+import useAuth from '../../hooks/useAuth'
 import JobsFilterBar from '../../components/Jobs/JobsFilterBar'
 import JobCard from '../../components/Jobs/JobCard'
 import JobDetailDrawer from '../../components/Jobs/JobDetailDrawer'
-import { SeekerProfileModal } from '../../components/Jobs/JobModals'
-
-// Normalize MOCK_JOBS
-const normalizeJob = (job) => ({
-  id: String(job.id),
-  title: job.title,
-  company: job.company,
-  location: job.is_remote ? 'Remote' : job.location,
-  type:
-    job.type ||
-    {
-      full_time: 'Full-time',
-      part_time: 'Part-time',
-      internship: 'Internship',
-      contract: 'Contract',
-    }[job.job_type] ||
-    'Full-time',
-  description: job.description,
-  salary:
-    job.salary ||
-    (job.salary_min && job.salary_max
-      ? `$${job.salary_min} - $${job.salary_max}`
-      : 'Not specified'),
-  experience_required: job.experience_required || 'Not specified',
-  postedDate: job.postedDate || 'Recently',
-  logo: job.logo || null,
-  postedBy: job.posted_by,
-  canRefer: Math.random() > 0.7, // Mock referral status
-  alumniPosted: Math.random() > 0.5, // Mock alumni posted status
-})
+import { normalizeJob } from '../../components/Jobs/jobUtils'
 
 const StudentJobBoard = () => {
-  // State
+  const { user } = useAuth()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Types')
   const [industryFilter, setIndustryFilter] = useState('All Industries')
   const [locationFilter, setLocationFilter] = useState('All Locations')
   const [expFilter, setExpFilter] = useState('All Levels')
   const [alumniRecommendedOnly, setAlumniRecommendedOnly] = useState(false)
-
-  const [activeTab, setActiveTab] = useState('all') // 'all', 'internships', 'saved'
-  const [showModal, setShowModal] = useState(false)
+  const [activeTab, setActiveTab] = useState('all')
   const [selectedJob, setSelectedJob] = useState(null)
-
-  const [savedJobIds, setSavedJobIds] = useState(new Set())
+  const [savedJobs, setSavedJobs] = useState([])
   const [backendJobs, setBackendJobs] = useState([])
+  const [applications, setApplications] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [pageError, setPageError] = useState('')
+  const [saveActionError, setSaveActionError] = useState('')
+  const [savingJobIds, setSavingJobIds] = useState(new Set())
+  const [applyState, setApplyState] = useState({
+    jobId: null,
+    isSubmitting: false,
+    error: '',
+    success: '',
+  })
 
   useEffect(() => {
-    api
-      .get('/jobs/')
-      .then((res) => setBackendJobs(res.data.results ?? res.data))
-      .catch((err) => console.error('Failed to fetch jobs', err))
-      .finally(() => setIsLoading(false))
+    const fetchData = async () => {
+      try {
+        const [jobsResponse, applicationsResponse, savedJobsResponse] = await Promise.all([
+          api.get('/jobs/'),
+          api.get('/job-applications/'),
+          api.get('/saved-jobs/'),
+        ])
+        setBackendJobs(jobsResponse.data.results ?? jobsResponse.data)
+        setApplications(applicationsResponse.data.results ?? applicationsResponse.data)
+        setSavedJobs(savedJobsResponse.data.results ?? savedJobsResponse.data)
+      } catch (error) {
+        console.error('Failed to fetch jobs page data', error)
+        setPageError('Unable to load jobs right now.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
   }, [])
 
-  // Derived Data
-  const allJobs = useMemo(() => {
-    return (backendJobs || []).map(normalizeJob).sort((a, b) => {
-      const idA = parseInt(a.id) || 0
-      const idB = parseInt(b.id) || 0
-      return idB - idA
-    })
-  }, [backendJobs])
+  const allJobs = useMemo(
+    () =>
+      (backendJobs || [])
+        .map((job) => normalizeJob(job, user?.id))
+        .sort((firstJob, secondJob) => {
+          const firstId = Number.parseInt(firstJob.id, 10) || 0
+          const secondId = Number.parseInt(secondJob.id, 10) || 0
+          return secondId - firstId
+        }),
+    [backendJobs, user?.id]
+  )
 
-  const internships = useMemo(() => allJobs.filter((j) => j.type === 'Internship'), [allJobs])
+  const internships = useMemo(() => allJobs.filter((job) => job.type === 'Internship'), [allJobs])
+  const appliedJobIds = useMemo(
+    () => new Set((applications || []).map((application) => Number(application.job))),
+    [applications]
+  )
+  const savedJobIds = useMemo(
+    () => new Set((savedJobs || []).map((savedJob) => String(savedJob.job))),
+    [savedJobs]
+  )
+  const savedJobRecordsByJobId = useMemo(
+    () => Object.fromEntries((savedJobs || []).map((savedJob) => [String(savedJob.job), savedJob])),
+    [savedJobs]
+  )
 
   const filteredJobs = useMemo(() => {
-    let list =
+    const baseList =
       activeTab === 'internships'
         ? internships
         : activeTab === 'saved'
-          ? allJobs.filter((j) => savedJobIds.has(j.id))
+          ? allJobs.filter((job) => savedJobIds.has(job.id))
           : allJobs
 
-    return list.filter((job) => {
+    return baseList.filter((job) => {
       const matchesSearch =
         !search ||
         job.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -93,64 +100,150 @@ const StudentJobBoard = () => {
 
       const matchesExp =
         expFilter === 'All Levels' ||
-        (expFilter === 'Senior' && job.experience_required?.includes('5+')) ||
-        (expFilter === 'Mid Level' && job.experience_required?.includes('3+')) ||
-        (expFilter === 'Entry Level' && job.type === 'Internship') ||
-        expFilter === 'All Levels'
+        (expFilter === 'Senior' && job.experience_required?.toLowerCase().includes('senior')) ||
+        (expFilter === 'Mid Level' && job.experience_required?.toLowerCase().includes('mid')) ||
+        (expFilter === 'Entry Level' &&
+          (job.type === 'Internship' ||
+            job.experience_required?.toLowerCase().includes('entry'))) ||
+        (expFilter === 'Executive' && job.experience_required?.toLowerCase().includes('director'))
 
-      const matchesInd = industryFilter === 'All Industries'
+      const matchesIndustry = industryFilter === 'All Industries'
+      const matchesAlumni = alumniRecommendedOnly ? job.alumniPosted : true
 
-      const matchesAlumni = alumniRecommendedOnly
-        ? job.alumniRecommended || job.alumniPosted || job.postedByRole === 'Alumni'
-        : true
-
-      return matchesSearch && matchesType && matchesLoc && matchesExp && matchesInd && matchesAlumni
+      return (
+        matchesSearch && matchesType && matchesLoc && matchesExp && matchesIndustry && matchesAlumni
+      )
     })
   }, [
-    allJobs,
-    internships,
     activeTab,
-    search,
-    typeFilter,
-    locationFilter,
+    allJobs,
+    alumniRecommendedOnly,
     expFilter,
     industryFilter,
+    internships,
+    locationFilter,
     savedJobIds,
-    alumniRecommendedOnly,
+    search,
+    typeFilter,
   ])
 
-  // Handlers
-  const toggleSaveJob = (id) => {
-    setSavedJobIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const toggleSaveJob = async (jobId) => {
+    setSaveActionError('')
+    setSavingJobIds((previousIds) => new Set(previousIds).add(jobId))
+
+    try {
+      const existingSavedJob = savedJobRecordsByJobId[jobId]
+      if (existingSavedJob) {
+        await api.delete(`/saved-jobs/${existingSavedJob.id}/`)
+        setSavedJobs((previousSavedJobs) =>
+          previousSavedJobs.filter(
+            (savedJob) => Number(savedJob.id) !== Number(existingSavedJob.id)
+          )
+        )
+      } else {
+        const response = await api.post('/saved-jobs/', {
+          job: Number(jobId),
+        })
+        setSavedJobs((previousSavedJobs) => [response.data, ...previousSavedJobs])
+      }
+    } catch (error) {
+      const errorData = error?.response?.data
+      setSaveActionError(
+        errorData?.detail ||
+          errorData?.non_field_errors?.[0] ||
+          'Unable to update saved jobs right now.'
+      )
+    } finally {
+      setSavingJobIds((previousIds) => {
+        const nextIds = new Set(previousIds)
+        nextIds.delete(jobId)
+        return nextIds
+      })
+    }
   }
 
-  const handleApply = (job) => {
-    setSelectedJob(job)
+  const handleSubmitApplication = async (job, coverLetter) => {
+    setApplyState({
+      jobId: job.rawId,
+      isSubmitting: true,
+      error: '',
+      success: '',
+    })
+
+    try {
+      const response = await api.post('/job-applications/', {
+        job: job.rawId,
+        cover_letter: (coverLetter || '').trim(),
+      })
+      setApplications((previousApplications) => [
+        response.data,
+        ...previousApplications.filter(
+          (application) => Number(application.id) !== Number(response.data.id)
+        ),
+      ])
+      setApplyState({
+        jobId: job.rawId,
+        isSubmitting: false,
+        error: '',
+        success: 'Application submitted successfully.',
+      })
+    } catch (error) {
+      const errorData = error?.response?.data
+      const firstFieldError = Object.values(errorData || {}).find(
+        (value) => Array.isArray(value) && value.length > 0
+      )
+
+      setApplyState({
+        jobId: job.rawId,
+        isSubmitting: false,
+        error:
+          errorData?.detail ||
+          errorData?.non_field_errors?.[0] ||
+          firstFieldError?.[0] ||
+          'Unable to submit your application right now.',
+        success: '',
+      })
+    }
   }
+
+  const selectedJobApplicationState = selectedJob
+    ? {
+        ...applyState,
+        hasApplied: appliedJobIds.has(Number(selectedJob.rawId)),
+        error: applyState.jobId === selectedJob.rawId ? applyState.error : '',
+        success: applyState.jobId === selectedJob.rawId ? applyState.success : '',
+        isSubmitting: applyState.jobId === selectedJob.rawId ? applyState.isSubmitting : false,
+      }
+    : {}
 
   return (
-    <div className="max-w-[1500px] mx-auto min-h-[calc(100vh-100px)] flex flex-col pb-8 font-sans px-4 sm:px-6 lg:px-8">
-      <SeekerProfileModal isOpen={showModal} onClose={() => setShowModal(false)} />
-      <JobDetailDrawer job={selectedJob} onClose={() => setSelectedJob(null)} />
+    <div className="mx-auto flex min-h-[calc(100vh-100px)] max-w-[1500px] flex-col px-4 pb-8 font-sans sm:px-6 lg:px-8">
+      <JobDetailDrawer
+        key={selectedJob?.id || 'student-job-drawer'}
+        job={selectedJob}
+        onClose={() => setSelectedJob(null)}
+        viewerRole="student"
+        onSubmitApplication={handleSubmitApplication}
+        applicationState={selectedJobApplicationState}
+      />
 
-      {/* Header Area */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 mt-4 md:mt-8 pb-5 border-b border-slate-200">
+      <div className="mb-6 mt-4 flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 md:mt-8 md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
             Student Job Board
           </h1>
-          <p className="text-slate-500 text-sm mt-1.5 font-medium">
-            Browse full-time jobs and internships prominently featured by our alumni network.
+          <p className="mt-1.5 text-sm font-medium text-slate-500">
+            Browse full-time jobs and internships shared by our alumni network.
           </p>
         </div>
       </div>
 
-      {/* Horizontal Filters */}
+      {(pageError || saveActionError) && (
+        <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {pageError || saveActionError}
+        </div>
+      )}
+
       <JobsFilterBar
         search={search}
         setSearch={setSearch}
@@ -166,11 +259,9 @@ const StudentJobBoard = () => {
         setAlumniRecommendedOnly={setAlumniRecommendedOnly}
       />
 
-      <div className="flex flex-col lg:flex-row gap-8 mt-2">
-        {/* Main Content Area */}
-        <div className="flex-1 space-y-6 min-w-0">
-          {/* Tabs */}
-          <div className="flex overflow-x-auto gap-2 border-b border-slate-200 scrollbar-hide">
+      <div className="mt-2 flex flex-col gap-8 lg:flex-row">
+        <div className="min-w-0 flex-1 space-y-6">
+          <div className="flex gap-2 overflow-x-auto border-b border-slate-200 scrollbar-hide">
             {[
               { id: 'all', label: `All Jobs (${allJobs.length})` },
               { id: 'internships', label: `Internships (${internships.length})` },
@@ -179,19 +270,19 @@ const StudentJobBoard = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`whitespace-nowrap px-5 py-3 text-sm font-bold transition-all relative ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`relative whitespace-nowrap px-5 py-3 text-sm font-bold transition-all ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 {tab.label}
                 {activeTab === tab.id && (
-                  <div className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-indigo-600 rounded-t-md"></div>
+                  <div className="absolute bottom-[-1px] left-0 h-0.5 w-full rounded-t-md bg-indigo-600" />
                 )}
               </button>
             ))}
           </div>
 
           {isLoading ? (
-            <div className="py-20 flex justify-center items-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <div className="flex items-center justify-center py-20">
+              <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-indigo-600" />
             </div>
           ) : filteredJobs.length > 0 ? (
             <div className="flex flex-col">
@@ -201,17 +292,19 @@ const StudentJobBoard = () => {
                   job={job}
                   isSaved={savedJobIds.has(job.id)}
                   onSave={toggleSaveJob}
-                  onApply={handleApply}
+                  onApply={setSelectedJob}
+                  actionLabel={appliedJobIds.has(Number(job.rawId)) ? 'Applied' : 'Apply'}
+                  isSaving={savingJobIds.has(job.id)}
                 />
               ))}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center py-20 px-6 text-center">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                <span className="text-3xl">??</span>
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-slate-100 bg-slate-50">
+                <span className="text-3xl">?</span>
               </div>
               <p className="text-lg font-bold text-slate-800">No jobs found</p>
-              <p className="text-sm mt-2 text-slate-500 max-w-xs">
+              <p className="mt-2 max-w-xs text-sm text-slate-500">
                 Try adjusting your filters or search terms.
               </p>
             </div>

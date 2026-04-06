@@ -1,18 +1,11 @@
 import React, { useState } from 'react'
-import { X, CheckCircle2, DollarSign, MapPin, Building2, Briefcase } from 'lucide-react'
+import { X, CheckCircle2, DollarSign, MapPin, Building2, Briefcase, Handshake } from 'lucide-react'
+import { JOB_TYPE_API_BY_LABEL, parseSalaryRange } from './jobUtils'
 
-// Mock User Data for Auth Fallback
-const MOCK_USER = {
-  name: 'Alex Johnson',
-  role: 'Alumni',
-  company: 'Tech Corp',
-}
-
-/* ─── Post Job Wizard (Alumni/Admin) ─── */
 export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
   const [step, setStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
+  const [submitError, setSubmitError] = useState('')
   const [formData, setFormData] = useState({
     title: '',
     company: '',
@@ -22,31 +15,72 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
     description: '',
     requirements: '',
     experience_required: 'Entry Level',
-    link: '',
-    canRefer: false,
+    application_deadline: '',
+    can_refer: false,
   })
+
+  const resetWizard = () => {
+    setStep(1)
+    setIsSubmitting(false)
+    setSubmitError('')
+    setFormData({
+      title: '',
+      company: '',
+      location: '',
+      type: 'Full-time',
+      salary: '',
+      description: '',
+      requirements: '',
+      experience_required: 'Entry Level',
+      application_deadline: '',
+      can_refer: false,
+    })
+  }
 
   if (!isOpen) return null
 
-  const handleNext = () => setStep((p) => Math.min(p + 1, 3))
-  const handleBack = () => setStep((p) => Math.max(p - 1, 1))
+  const handleNext = () => setStep((previousStep) => Math.min(previousStep + 1, 3))
+  const handleBack = () => setStep((previousStep) => Math.max(previousStep - 1, 1))
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsSubmitting(true)
-    setTimeout(() => {
-      setIsSubmitting(false)
-      onSave({
-        ...formData,
-        id: Math.random().toString(),
-        postedDate: 'Just now',
-        applicants: 0,
-        alumniPosted: true,
-        postedBy: MOCK_USER.name, // Mocking auth user
-        requirements: formData.requirements.split('\n').filter((r) => r.trim() !== ''),
+    setSubmitError('')
+
+    const { salaryMin, salaryMax } = parseSalaryRange(formData.salary)
+
+    try {
+      await onSave({
+        title: formData.title.trim(),
+        company: formData.company.trim(),
+        location: formData.location.trim(),
+        job_type: JOB_TYPE_API_BY_LABEL[formData.type] || 'full_time',
+        is_remote: formData.location.trim().toLowerCase() === 'remote',
+        description: formData.description.trim(),
+        requirements: formData.requirements.trim(),
+        salary_min: salaryMin,
+        salary_max: salaryMax,
+        experience_required: formData.experience_required,
+        application_deadline: formData.application_deadline || null,
+        can_refer: Boolean(formData.can_refer),
+        status: 'active',
       })
+      resetWizard()
       onClose()
-      setStep(1)
-    }, 1500)
+    } catch (error) {
+      const errorData = error?.response?.data
+      const firstFieldError = Object.values(errorData || {}).find(
+        (value) => Array.isArray(value) && value.length > 0
+      )
+
+      setSubmitError(
+        errorData?.detail ||
+          errorData?.non_field_errors?.[0] ||
+          firstFieldError?.[0] ||
+          'Unable to publish this job right now.'
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const steps = [
@@ -57,59 +91,57 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
 
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
 
-      {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+      <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight">Post an Opportunity</h2>
-            <p className="text-xs text-slate-500 mt-1">
+            <h2 className="text-xl font-bold tracking-tight text-slate-800">Post an Opportunity</h2>
+            <p className="mt-1 text-xs text-slate-500">
               Share an open role with your alumni network.
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition-colors"
+            onClick={() => {
+              resetWizard()
+              onClose()
+            }}
+            className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Wizard Steps indicator */}
-        <div className="px-6 pt-6 pb-2">
-          <div className="flex items-center justify-between relative">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-100 rounded-full -z-10"></div>
+        <div className="px-6 pb-2 pt-6">
+          <div className="relative flex items-center justify-between">
+            <div className="absolute left-0 top-1/2 -z-10 h-1 w-full -translate-y-1/2 rounded-full bg-slate-100" />
             <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-indigo-500 rounded-full -z-10 transition-all duration-300"
+              className="absolute left-0 top-1/2 -z-10 h-1 -translate-y-1/2 rounded-full bg-indigo-500 transition-all duration-300"
               style={{ width: `${((step - 1) / (steps.length - 1)) * 100}%` }}
-            ></div>
-            {steps.map((s) => (
-              <div key={s.id} className="flex flex-col items-center gap-2 bg-white px-2">
+            />
+            {steps.map((item) => (
+              <div key={item.id} className="flex flex-col items-center gap-2 bg-white px-2">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${step >= s.id ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-white border-slate-200 text-slate-400'}`}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${step >= item.id ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-slate-200 bg-white text-slate-400'}`}
                 >
-                  {step > s.id ? <CheckCircle2 size={16} /> : s.id}
+                  {step > item.id ? <CheckCircle2 size={16} /> : item.id}
                 </div>
                 <span
-                  className={`text-[10px] uppercase font-bold tracking-wider ${step >= s.id ? 'text-indigo-600' : 'text-slate-400'}`}
+                  className={`text-[10px] font-bold uppercase tracking-wider ${step >= item.id ? 'text-indigo-600' : 'text-slate-400'}`}
                 >
-                  {s.title}
+                  {item.title}
                 </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-6">
           {step === 1 && (
-            <div className="space-y-5 animate-in slide-in-from-right-4">
+            <div className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Job Title
                   </label>
                   <div className="relative">
@@ -120,14 +152,14 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
                     <input
                       type="text"
                       placeholder="e.g. Senior PM"
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                       value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      onChange={(event) => setFormData({ ...formData, title: event.target.value })}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Company
                   </label>
                   <div className="relative">
@@ -138,9 +170,11 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
                     <input
                       type="text"
                       placeholder="e.g. Google"
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                       value={formData.company}
-                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                      onChange={(event) =>
+                        setFormData({ ...formData, company: event.target.value })
+                      }
                     />
                   </div>
                 </div>
@@ -148,7 +182,7 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Location
                   </label>
                   <div className="relative">
@@ -159,20 +193,22 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
                     <input
                       type="text"
                       placeholder="City or Remote"
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                       value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      onChange={(event) =>
+                        setFormData({ ...formData, location: event.target.value })
+                      }
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Job Type
                   </label>
                   <select
-                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    onChange={(event) => setFormData({ ...formData, type: event.target.value })}
                   >
                     <option>Full-time</option>
                     <option>Part-time</option>
@@ -183,54 +219,59 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  External Application Link
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  Application Deadline
                 </label>
                 <input
-                  type="url"
-                  placeholder="https://careers.company.com/job..."
-                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                  value={formData.link}
-                  onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                  type="date"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={formData.application_deadline}
+                  onChange={(event) =>
+                    setFormData({ ...formData, application_deadline: event.target.value })
+                  }
                 />
-                <p className="text-xs text-slate-500 mt-1">
-                  Leave blank to use platform applications.
+                <p className="mt-1 text-xs text-slate-500">
+                  Leave blank if the role can stay open without a fixed deadline.
                 </p>
               </div>
             </div>
           )}
 
           {step === 2 && (
-            <div className="space-y-5 animate-in slide-in-from-right-4">
+            <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Job Description
                 </label>
                 <textarea
                   rows={4}
                   placeholder="Describe the role and responsibilities..."
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(event) =>
+                    setFormData({ ...formData, description: event.target.value })
+                  }
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Requirements (One per line)
                 </label>
                 <textarea
                   rows={3}
                   placeholder="- 5+ years experience&#10;- Knowledge of React"
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                   value={formData.requirements}
-                  onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
+                  onChange={(event) =>
+                    setFormData({ ...formData, requirements: event.target.value })
+                  }
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Salary Range
                   </label>
                   <div className="relative">
@@ -240,22 +281,22 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
                     />
                     <input
                       type="text"
-                      placeholder="e.g. ₹12L - ₹15L"
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      placeholder="e.g. 1200000 - 1500000"
+                      className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                       value={formData.salary}
-                      onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
+                      onChange={(event) => setFormData({ ...formData, salary: event.target.value })}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Experience Level
                   </label>
                   <select
-                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     value={formData.experience_required}
-                    onChange={(e) =>
-                      setFormData({ ...formData, experience_required: e.target.value })
+                    onChange={(event) =>
+                      setFormData({ ...formData, experience_required: event.target.value })
                     }
                   >
                     <option>Entry Level</option>
@@ -266,68 +307,75 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
                 </div>
               </div>
 
-              <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
-                <label className="flex items-start gap-3 cursor-pointer group">
-                  <div className="mt-0.5">
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={formData.canRefer}
-                      onChange={() => setFormData({ ...formData, canRefer: !formData.canRefer })}
-                    />
-                    <div
-                      className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${formData.canRefer ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-indigo-300'}`}
-                    >
-                      {formData.canRefer && <CheckCircle2 size={14} />}
-                    </div>
-                  </div>
+              <label className="block rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((previousData) => ({
+                        ...previousData,
+                        can_refer: !previousData.can_refer,
+                      }))
+                    }
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${formData.can_refer ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-indigo-300 bg-white text-transparent'}`}
+                    aria-pressed={formData.can_refer}
+                    aria-label="Can refer candidates"
+                  >
+                    <CheckCircle2 size={14} />
+                  </button>
                   <div>
-                    <p className="text-sm font-bold text-indigo-900 group-hover:text-indigo-700">
-                      I can refer candidates to this role
-                    </p>
-                    <p className="text-xs text-indigo-700/70 mt-0.5 font-medium">
-                      Adds a 'Can Refer' badge to your post. Candidates will be encouraged to
-                      message you.
+                    <div className="flex items-center gap-2 text-sm font-bold text-indigo-900">
+                      <Handshake size={16} />
+                      Can I refer candidates?
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-indigo-700/80">
+                      Turn this on if applicants for this role can request a referral from the
+                      alumni who posted it.
                     </p>
                   </div>
-                </label>
-              </div>
+                </div>
+              </label>
             </div>
           )}
 
           {step === 3 && (
-            <div className="space-y-6 animate-in slide-in-from-right-4">
-              <div className="text-center py-4">
-                <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4" />
+            <div className="space-y-6">
+              <div className="py-4 text-center">
+                <CheckCircle2 size={48} className="mx-auto mb-4 text-emerald-500" />
                 <h3 className="text-xl font-bold text-slate-900">Ready to Publish</h3>
-                <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
+                <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
                   Your job post for '{formData.title}' at {formData.company} will be visible to the
                   alumni and student community.
                 </p>
               </div>
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
                   Preview Summary
                 </h4>
-                <div className="space-y-2 text-sm text-slate-700 font-medium">
+                <div className="space-y-2 text-sm font-medium text-slate-700">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Role:</span>{' '}
-                    <span className="text-slate-900 font-bold">{formData.title}</span>
+                    <span className="text-slate-500">Role:</span>
+                    <span className="font-bold text-slate-900">{formData.title}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Company:</span>{' '}
-                    <span className="text-slate-900 font-bold">{formData.company}</span>
+                    <span className="text-slate-500">Company:</span>
+                    <span className="font-bold text-slate-900">{formData.company}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Location:</span>{' '}
+                    <span className="text-slate-500">Location:</span>
                     <span>{formData.location}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Type:</span> <span>{formData.type}</span>
+                    <span className="text-slate-500">Type:</span>
+                    <span>{formData.type}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Referral:</span>{' '}
-                    <span>{formData.canRefer ? 'Yes' : 'No'}</span>
+                    <span className="text-slate-500">Deadline:</span>
+                    <span>{formData.application_deadline || 'Open-ended'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Referral:</span>
+                    <span>{formData.can_refer ? 'Enabled' : 'Not available'}</span>
                   </div>
                 </div>
               </div>
@@ -335,35 +383,47 @@ export const PostJobWizard = ({ isOpen, onClose, onSave }) => {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-          <button
-            onClick={step === 1 ? onClose : handleBack}
-            className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            {step === 1 ? 'Cancel' : 'Back'}
-          </button>
+        <div className="border-t border-slate-100 bg-slate-50 px-6 py-4">
+          {submitError && (
+            <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {submitError}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={
+                step === 1
+                  ? () => {
+                      resetWizard()
+                      onClose()
+                    }
+                  : handleBack
+              }
+              className="px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+            >
+              {step === 1 ? 'Cancel' : 'Back'}
+            </button>
 
-          <button
-            onClick={step === 3 ? handleSubmit : handleNext}
-            disabled={isSubmitting}
-            className={`px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-2 ${isSubmitting ? 'opacity-70 cursor-wait' : ''}`}
-          >
-            {isSubmitting ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : step === 3 ? (
-              'Publish Job'
-            ) : (
-              'Next Step'
-            )}
-          </button>
+            <button
+              onClick={step === 3 ? handleSubmit : handleNext}
+              disabled={isSubmitting}
+              className={`flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 ${isSubmitting ? 'cursor-wait opacity-70' : ''}`}
+            >
+              {isSubmitting ? (
+                <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              ) : step === 3 ? (
+                'Publish Job'
+              ) : (
+                'Next Step'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </>
   )
 }
 
-/* ─── Seeker Profile Wizard (Student/Young Alumni) ─── */
 export const SeekerProfileModal = ({ isOpen, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDone, setIsDone] = useState(false)
@@ -383,35 +443,33 @@ export const SeekerProfileModal = ({ isOpen, onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-teal-500 text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-teal-500 p-5 text-white">
           <h2 className="text-xl font-bold tracking-tight">Create Seeker Profile</h2>
           {!isDone && (
             <button
               onClick={onClose}
-              className="p-2 text-teal-100 hover:bg-teal-600 hover:text-white rounded-full transition-colors"
+              className="rounded-full p-2 text-teal-100 transition-colors hover:bg-teal-600 hover:text-white"
             >
               <X size={20} />
             </button>
           )}
         </div>
 
-        {/* Content */}
         <div className="p-6">
           {!isDone ? (
-            <div className="space-y-4 animate-in slide-in-from-right-4">
-              <p className="text-sm text-slate-600 mb-4">
+            <div className="space-y-4">
+              <p className="mb-4 text-sm text-slate-600">
                 Let alumni know you are actively looking for opportunities to boost your visibility
                 in the directory.
               </p>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Looking for
                 </label>
-                <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                <select className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500">
                   <option>Internship</option>
                   <option>Full-time Role</option>
                   <option>Part-time Role</option>
@@ -419,22 +477,22 @@ export const SeekerProfileModal = ({ isOpen, onClose }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Target Roles
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. Software Engineer, Data Analyst"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none mb-1"
+                  className="mb-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <p className="text-[10px] text-slate-400">Comma separated</p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Availability
                 </label>
-                <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                <select className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500">
                   <option>Immediately</option>
                   <option>Next 3 months</option>
                   <option>Next 6 months</option>
@@ -442,34 +500,33 @@ export const SeekerProfileModal = ({ isOpen, onClose }) => {
               </div>
             </div>
           ) : (
-            <div className="text-center py-6 animate-in zoom-in-95 duration-300">
-              <div className="w-20 h-20 mx-auto bg-teal-100 text-teal-500 rounded-full flex items-center justify-center mb-6">
-                <CheckCircle2 size={40} className="animate-in slide-in-from-bottom-2 fade-in" />
+            <div className="py-6 text-center">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-teal-100 text-teal-500">
+                <CheckCircle2 size={40} />
               </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">Profile Updated!</h3>
-              <p className="text-slate-500 max-w-xs mx-auto text-sm">
+              <h3 className="mb-2 text-2xl font-bold text-slate-900">Profile Updated!</h3>
+              <p className="mx-auto max-w-xs text-sm text-slate-500">
                 A "Seeking Opportunities" badge has been added to your profile in the directory.
               </p>
             </div>
           )}
         </div>
 
-        {/* Footer */}
         {!isDone && (
-          <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3">
+          <div className="flex gap-3 border-t border-slate-100 bg-slate-50 p-5">
             <button
               onClick={onClose}
-              className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-200 rounded-xl transition-colors shrink-0"
+              className="shrink-0 rounded-xl px-5 py-2.5 font-medium text-slate-600 transition-colors hover:bg-slate-200"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className={`flex-1 py-2.5 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 shadow-sm transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'opacity-75 cursor-wait' : ''}`}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-600 py-2.5 font-semibold text-white shadow-sm transition-all hover:bg-teal-700 ${isSubmitting ? 'cursor-wait opacity-75' : ''}`}
             >
               {isSubmitting ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
               ) : (
                 'Enable Profile'
               )}
