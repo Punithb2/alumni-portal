@@ -1,6 +1,6 @@
-# OBES — Marks Management
+# Alumni Portal
 
-This repository contains a **Django (backend)** + **React (frontend)** application for an Outcome-Based Education System (OBES) Marks Management platform.
+This repository contains a **Django (backend)** + **React (frontend)** application for an Alumni Portal platform.
 
 ## Prerequisites (Install these first)
 
@@ -12,15 +12,15 @@ This repository contains a **Django (backend)** + **React (frontend)** applicati
 
 *Optional but recommended:*
 - VS Code extensions: **Python**, **ESLint**, **Prettier**
-- PostgreSQL GUI: **pgAdmin** or **DBeaver**
+- PostgreSQL GUI: **pgAdmin** 
 
 ---
 
 ## 1) Clone and open in VS Code
 
 ```bash
-git clone https://github.com/Punithb2/OBES.git
-cd OBES
+git clone https://github.com/Punithb2/alumni-portal.git
+cd alumni-portal
 code .
 ```
 
@@ -33,8 +33,8 @@ Open PostgreSQL (via `psql` CLI or pgAdmin) and create a database and user.
 Example commands (psql):
 
 ```sql
-CREATE DATABASE obes_db;
-CREATE USER obes_user WITH PASSWORD 'obes@1234';
+CREATE DATABASE alumni_db;
+CREATE USER obes_user WITH PASSWORD 'alumni@1234';
 GRANT ALL PRIVILEGES ON DATABASE obes_db TO obes_user;
 ```
 
