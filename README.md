@@ -34,8 +34,8 @@ Example commands (psql):
 
 ```sql
 CREATE DATABASE alumni_db;
-CREATE USER obes_user WITH PASSWORD 'alumni@1234';
-GRANT ALL PRIVILEGES ON DATABASE obes_db TO obes_user;
+CREATE USER alumni_user WITH PASSWORD 'alumni@1234';
+GRANT ALL PRIVILEGES ON DATABASE alumni_db TO alumni_user;
 ```
 
 Keep these values ready for your environment variables:
@@ -94,7 +94,7 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-Open the newly created `.env` file in VS Code and update it with your local PostgreSQL credentials and a secure Django Secret Key.
+Open the newly created `.env` file and update it with your local PostgreSQL credentials and a secure Django Secret Key.
 
 ### 3.5 Run migrations
 
@@ -109,20 +109,22 @@ python manage.py migrate
 
 ## 4) Initialize the Platform (Database Seeding)
 
-Instead of manually creating a superuser, this project includes a custom setup command that bootstraps the database with default departments, necessary global configurations, and an initial Super Admin account so you can log into the React dashboards immediately.
+This project includes a mock data seeding command that creates users, profiles, jobs, events, campaigns, forum content, and clubs for quick local testing.
 
-Run the setup command:
+Run the seed command:
 
 ```bash
-python manage.py setup_obes
+python manage.py seed_mock_data
 ```
 
 ### Default Login Credentials
 
-Once initialized, you can log in to the frontend portals using the following test account:
+After seeding, you can use these accounts:
 
-- Email: `admin@obe.com`
-- Password: `password123`
+- Admin: `admin@alumni.com` / `admin123`
+- Alumni: `alex@alumni.com` / `password123`
+- Alumni: `sarah@alumni.com` / `password123`
+- Student: `student1@uni.com` / `password123`
 
 *(Note: Change this password immediately after your first login if deploying to a live server).*
 
@@ -183,7 +185,8 @@ http://localhost:5173/
 If your React app cannot access the Django API:
 
 - Ensure `django-cors-headers` is installed.
-- Ensure `http://localhost:5173` is added to `CORS_ALLOWED_ORIGINS` in `backend/core/settings.py`.
+- By default, this project uses `CORS_ALLOW_ALL_ORIGINS = True` in `backend/core/settings.py` for development.
+- If you tighten CORS for production, set `CORS_ALLOWED_ORIGINS` explicitly (for example, include `http://localhost:5173` for local frontend).
 
 ### B) PostgreSQL connection errors
 
@@ -192,7 +195,7 @@ Check:
 - The PostgreSQL service is actively running on your machine.
 - The DB credentials in your `backend/.env` file exactly match your PostgreSQL setup.
 - Port is correct (`5432`).
-- The database `obes_db` actually exists.
+- The database `alumni_db` actually exists.
 
 ### C) Running the app in a new terminal later
 
@@ -212,8 +215,9 @@ Start frontend (in a new terminal): `npm run dev`
 Try *(only if strictly required to reset the database schema)*:
 
 ```bash
-python manage.py makemigrations --empty api
-python manage.py migrate --run-syncdb
+python manage.py showmigrations
+python manage.py makemigrations app
+python manage.py migrate
 ```
 
 ---
